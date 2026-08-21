@@ -85,6 +85,9 @@
   <button data-tab="price">Price Changes</button>
   <button data-tab="coupon">Coupon Performance</button>
   <button data-tab="packages">Package Explorer</button>
+  <button data-tab="segments">Segments</button>
+  <button data-tab="channels">Channels</button>
+  <button data-tab="geography">Geography</button>
   <button data-tab="rules">Coupon Rules</button>
   <button data-tab="settings">Settings</button>
 </nav>
@@ -97,10 +100,15 @@
   <section class="panel active" id="panel-overview">
     <div class="cards" id="kpiCards"></div>
     <div class="callout" id="crossCheck"></div>
+    <div class="box">
+      <h3>Daily trend — true day-on-day (CADENCE-01)</h3>
+      <div class="note">GM%/bookings by <b>booking_date</b>, full pull range. Dashed segment = outside the clean window (partial/unreliable day) — see Settings.</div>
+      <canvas id="chartDaily" style="max-height:280px"></canvas>
+    </div>
     <div class="grid2">
       <div class="box">
         <h3>GM% trend by week</h3>
-        <div class="note">Blended across top-tracked packages/cities, Aug 1–16 clean window</div>
+        <div class="note">Blended across top-tracked packages/cities, clean window per Settings tab</div>
         <canvas id="chartGmTrend"></canvas>
       </div>
       <div class="box">
@@ -108,6 +116,11 @@
         <div class="note">Share of bookings by coupon — watch for over-concentration</div>
         <canvas id="chartConcentration"></canvas>
       </div>
+    </div>
+    <div class="box">
+      <h3>Revenue → GM waterfall (FIN-01)</h3>
+      <div class="note" id="waterfallNote">Latest clean week — offer price down through each discount type to Collected Net Revenue, then minus cpt to GM. Excludes collection-lag rows (GM not yet computed) so it reconciles exactly.</div>
+      <canvas id="chartWaterfall" style="max-height:320px"></canvas>
     </div>
   </section>
 
@@ -127,12 +140,27 @@
       </div>
       <div class="tablewrap"><table id="priceTable"></table></div>
     </div>
+    <div class="box">
+      <h3>Price change event impact tracker (PRICE-01)</h3>
+      <div class="note">Before/after GM%·ASP for dated moves, joined to DoD_Summary by exact Test Code≈package_bucket + City≈city_bucket match — unmatched rows are flagged, not fuzzy-guessed. NOT stacking-aware: a coincident coupon/VIP change in the same window will contaminate the "actual" read (V5_Methodology.md).</div>
+      <div id="priceImpactCards"></div>
+    </div>
+    <div class="box">
+      <h3>Price × coupon stacking risk (RISK-01)</h3>
+      <div class="note"><b>Static, ported from ASP_Action_Plan.xlsx §4</b> — Price_Change_Log's Test Code (lab test IDs like BC063) and Booking_Summary's package_code (PL124I etc.) are different namespaces with no mapping today, so this can't be a live join yet. Needs a Test Code↔package_code crosswalk (or a Package_Coupon_Summary tab) before it can recompute automatically.</div>
+      <div class="tablewrap"><table id="riskTable"></table></div>
+    </div>
   </section>
 
   <!-- COUPON PERFORMANCE -->
   <section class="panel" id="panel-coupon">
     <div class="box">
-      <h3>GM% vs. discount depth</h3>
+      <h3>Discount-stacking heatmap (COUP-01)</h3>
+      <div class="note">Same "stacking degrades GM%" finding as COUP-02 below, as a time series — rows = number of discount types stacked on one booking (special/vip/coupon/redcash/giftcard), color = GM%.</div>
+      <div id="stackHeatmap"></div>
+    </div>
+    <div class="box">
+      <h3>GM% vs. discount depth (COUP-02)</h3>
       <div class="note">Real GM% per coupon, joined via coupon_code — not revenue/AOV. Deeper discount = lower GM%, consistently.</div>
       <canvas id="chartDepthMargin"></canvas>
     </div>
@@ -158,6 +186,63 @@
       </div>
       <div class="tablewrap"><table id="pkgTable"></table></div>
     </div>
+    <div class="box">
+      <h3>Full-universe package GM% ranking (PKG-01)</h3>
+      <div class="note">Every package with ≥10 bookings in the clean window, individually — wider than the top-15 explorer above. Combo bookings (comma-separated package_code) badged, not silently ranked alongside single packages.</div>
+      <div class="filters"><input id="pkgFullSearch" placeholder="Search package code…"></div>
+      <div class="tablewrap"><table id="pkgFullTable"></table></div>
+    </div>
+  </section>
+
+  <!-- SEGMENTS -->
+  <section class="panel" id="panel-segments">
+    <div class="box">
+      <h3>Fresh vs. Repeat trend (SEG-01)</h3>
+      <div class="note">Weekly, blended across top-6 cities + OTHER. Clean window per Settings.</div>
+      <div class="grid2">
+        <div><div class="note">GM %</div><canvas id="chartSegGm" style="max-height:220px"></canvas></div>
+        <div><div class="note">AOV (₹)</div><canvas id="chartSegAov" style="max-height:220px"></canvas></div>
+      </div>
+      <div class="note" style="margin-top:10px">Bookings</div>
+      <canvas id="chartSegVol" style="max-height:220px"></canvas>
+    </div>
+    <div class="box">
+      <h3>Customer category comparison (SEG-02)</h3>
+      <div class="note">regular / vip / vip gold, latest clean week</div>
+      <div class="filters">
+        <select id="segMetric">
+          <option value="gm_pct">GM %</option>
+          <option value="asp">AOV (₹)</option>
+          <option value="bookings">Bookings</option>
+        </select>
+      </div>
+      <canvas id="chartCatCompare" style="max-height:280px"></canvas>
+    </div>
+    <div class="box">
+      <h3>VIP Gold fresh-share trend (SEG-03)</h3>
+      <div class="note">Fresh bookings ÷ total VIP Gold bookings, per week — the metric behind the "2.9x AOV gap" finding, now independently verifiable from live data instead of an external deepdive.</div>
+      <canvas id="chartVipGoldShare" style="max-height:260px"></canvas>
+    </div>
+  </section>
+
+  <!-- CHANNELS -->
+  <section class="panel" id="panel-channels">
+    <div class="box">
+      <h3>Channel split trend (CHAN-01)</h3>
+      <div class="note">Bookings by channel (Self/Sales/Phlebo), stacked, with blended GM% overlaid on the right axis.</div>
+      <canvas id="chartChannelTrend" style="max-height:340px"></canvas>
+    </div>
+  </section>
+
+  <!-- GEOGRAPHY -->
+  <section class="panel" id="panel-geography">
+    <div class="box">
+      <h3>City/Zone GM% ranking (GEO-01)</h3>
+      <div class="note">Top-20 cities (wider than the top-6 used elsewhere) × top-30 zones + OTHER. Not a literal map — sortable table + bar, per this repo's no-mapping-library convention.</div>
+      <div class="filters"><select id="geoCityFilter"><option value="">All cities</option></select></div>
+      <canvas id="chartGeoRank" style="max-height:280px"></canvas>
+      <div class="tablewrap" style="margin-top:14px"><table id="geoTable"></table></div>
+    </div>
   </section>
 
   <!-- COUPON RULES -->
@@ -181,13 +266,13 @@
 
   <footer>
     Source: <a class="src" href="https://docs.google.com/spreadsheets/d/1lJfg79zQ1hQUKh_IHqkzzkTuUW9kdJGHfvg8bLcdTCk/edit" target="_blank">Redcliffe GM Action Plan — Live</a> ·
-    Data basis: online_discount_summary Aug17MTD pull, Aug 1–16 clean window · See V5_Methodology.md for full caveats
+    Data basis: Booking_Summary raw export (64,904 rows, Jun 2–Aug 21), clean window per Settings tab · See V5_Methodology.md and DASHBOARD_VISUALIZATION_SPEC.md for full caveats
   </footer>
 </main>
 
 <script>
 const SHEET_ID = "1lJfg79zQ1hQUKh_IHqkzzkTuUW9kdJGHfvg8bLcdTCk";
-const TABS = ["Settings","Price_Change_Log","Package_Info","Coupon_Settings_Log","Booking_Weekly_Summary","Coupon_Summary"];
+const TABS = ["Settings","Price_Change_Log","Package_Info","Coupon_Settings_Log","Booking_Weekly_Summary","Coupon_Summary","Segment_Summary","Channel_Summary","Discount_Stacking_Summary","Geo_Summary","DoD_Summary","Financial_Waterfall_Summary","Package_GM_Summary"];
 const ALIAS = {"Booking_Weekly_Summary":"Booking_Summary"}; // internal code still refers to Booking_Summary
 
 let DATA = {};
@@ -243,6 +328,9 @@ function renderAll(){
   renderPrice();
   renderCoupon();
   renderPackages();
+  renderSegments();
+  renderChannels();
+  renderGeography();
   renderRules();
   renderSettings();
 }
@@ -300,6 +388,82 @@ function renderOverview(){
     labels: sorted.map(r=>r.coupon_bucket),
     datasets:[{data: sorted.map(r=>num(r.bookings)), backgroundColor:['#1F4E78','#c9a227','#1e7e34','#b02a2a','#6c757d','#8e6bb0','#2a9d8f','#e76f51']}]
   },{plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}});
+
+  drawDailyTrendChart();
+  drawWaterfallChart();
+}
+
+// CADENCE-01 — true day-on-day trend, DoD_Summary blended across all package/city buckets
+function drawDailyTrendChart(){
+  const dod = DATA.DoD_Summary || [];
+  const byDate = {};
+  dod.forEach(r=>{
+    const d = r.booking_date;
+    if(!byDate[d]) byDate[d] = {bookings:0, gm:0, rev:0, partial:String(r.is_partial)==='True'};
+    byDate[d].bookings += num(r.bookings);
+    byDate[d].gm += num(r.gm_sum);
+    byDate[d].rev += num(r.revenue_sum);
+  });
+  const dates = Object.keys(byDate).sort();
+  const gmPctByDay = dates.map(d=> byDate[d].rev ? (byDate[d].gm/byDate[d].rev*100) : null);
+  drawChart('chartDaily','line',{
+    labels: dates,
+    datasets:[{
+      label:'GM %', data: gmPctByDay, borderColor:'#1F4E78', backgroundColor:'rgba(31,78,120,0.06)',
+      tension:0.15, fill:true, pointRadius:2,
+      segment:{ borderDash: ctx => (byDate[dates[ctx.p0DataIndex]].partial || byDate[dates[ctx.p1DataIndex]].partial) ? [5,4] : undefined }
+    }]
+  },{
+    plugins:{ tooltip:{ callbacks:{ afterLabel: ctx => {
+      const d = dates[ctx.dataIndex]; const b = byDate[d];
+      return `${b.bookings.toLocaleString()} bookings${b.partial?' (partial day)':''}`;
+    }}}},
+    scales:{ y:{ title:{display:true,text:'GM %'} }, x:{ ticks:{ maxTicksLimit:14 } } }
+  });
+}
+
+// FIN-01 — revenue-to-GM waterfall, latest clean week in Financial_Waterfall_Summary
+function drawWaterfallChart(){
+  const fin = DATA.Financial_Waterfall_Summary || [];
+  if(!fin.length) return;
+  const row = [...fin].sort((a,b)=>String(a.week_start).localeCompare(String(b.week_start))).slice(-1)[0];
+  document.getElementById('waterfallNote').textContent =
+    `Week of ${row.week_start} — offer price down through each discount type to Collected Net Revenue, then minus cpt to GM. Excludes collection-lag rows so it reconciles exactly.`;
+
+  const steps = [
+    ['Offer Price', num(row.offer_price_sum), true],
+    ['Special Disc', -num(row.special_discount_sum), false],
+    ['VIP Disc', -num(row.vip_discount_sum), false],
+    ['Coupon Disc', -num(row.coupon_discount_sum), false],
+    ['Redcash', -num(row.redcash_sum), false],
+    ['Giftcard', -num(row.giftcard_sum), false],
+    ['Net Revenue', num(row.collected_net_revenue_sum), true],
+    ['cpt', -num(row.cpt_sum), false],
+    ['GM', num(row.gm_sum), true],
+  ];
+  let cum = 0;
+  const ranges = [], colors = [];
+  steps.forEach(([label, val, isTotal])=>{
+    if(isTotal){
+      ranges.push([0, val]);
+      colors.push('#1F4E78');
+      cum = val;
+    } else {
+      const start = cum, end = cum + val;
+      ranges.push([Math.min(start,end), Math.max(start,end)]);
+      colors.push(val < 0 ? '#b02a2a' : '#1e7e34');
+      cum = end;
+    }
+  });
+  drawChart('chartWaterfall','bar',{
+    labels: steps.map(s=>s[0]),
+    datasets:[{ data: ranges, backgroundColor: colors, borderRadius:3 }]
+  },{
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => {
+      const [lo,hi] = ctx.raw; return `₹${Math.round(hi-lo).toLocaleString()}`;
+    }}}},
+    scales:{ y:{ title:{display:true,text:'₹'} } }
+  });
 }
 
 // ---------- PRICE ----------
@@ -309,6 +473,59 @@ function renderPrice(){
   drawPriceTable();
   document.getElementById('priceCityFilter').onchange = drawPriceTable;
   document.getElementById('priceStatusFilter').onchange = drawPriceTable;
+  drawPriceImpact();
+  drawRiskTable();
+}
+
+// PRICE-01 — before/after impact for dated price moves, joined to DoD_Summary
+function drawPriceImpact(){
+  const log = (DATA.Price_Change_Log||[]).filter(r => r['Change Date'] && String(r['Change Date']).trim());
+  const el = document.getElementById('priceImpactCards');
+  if(!log.length){
+    el.innerHTML = `<div class="callout"><b>No dated price changes yet.</b> Every row in Price_Change_Log above has a blank "Change Date" — fill one in once a move goes live to unlock before/after tracking here.</div>`;
+    return;
+  }
+  const settingsRows = DATA.Settings || [];
+  const windowSetting = settingsRows.find(r=>r.key==='impact_tracking_window_days');
+  const windowDays = windowSetting ? num(windowSetting.value) : 7;
+  const dod = DATA.DoD_Summary || [];
+
+  const cards = log.map(ev => {
+    const changeDate = new Date(ev['Change Date']);
+    if(isNaN(changeDate)) return `<div class="card"><div class="label">${ev['Test Code']} — ${ev.City}</div><div class="delta down">Unparseable Change Date, skipped</div></div>`;
+    const before = new Date(changeDate); before.setDate(before.getDate()-windowDays);
+    const after = new Date(changeDate); after.setDate(after.getDate()+windowDays);
+    const inRange = (d,a,b) => { const t=new Date(d).getTime(); return t>=a.getTime() && t<b.getTime(); };
+    const matches = dod.filter(r => r.package_bucket===ev['Test Code'] && (ev.City==='All' || r.city_bucket===ev.City));
+    if(!matches.length){
+      return `<div class="card"><div class="label">${ev['Test Code']} — ${ev.City}</div><div class="delta flat">No matching package_bucket/city_bucket rows in DoD_Summary — Test Code likely doesn't exact-match a tracked package_bucket (see RISK-01 note on the Test Code / package_code namespace gap)</div></div>`;
+    }
+    const beforeRows = matches.filter(r=>inRange(r.booking_date, before, changeDate));
+    const afterRows = matches.filter(r=>inRange(r.booking_date, changeDate, after));
+    const sum=(rows,k)=>rows.reduce((a,r)=>a+num(r[k]),0);
+    const bGm=sum(beforeRows,'gm_sum'), bRev=sum(beforeRows,'revenue_sum'), bBook=sum(beforeRows,'bookings');
+    const aGm=sum(afterRows,'gm_sum'), aRev=sum(afterRows,'revenue_sum'), aBook=sum(afterRows,'bookings');
+    const bGmPct = bRev? bGm/bRev*100:0, aGmPct = aRev? aGm/aRev*100:0;
+    const bAsp = bBook? bRev/bBook:0, aAsp = aBook? aRev/aBook:0;
+    const gmDelta = (aGmPct-bGmPct).toFixed(1), aspDelta = bAsp? (((aAsp-bAsp)/bAsp)*100).toFixed(1) : null;
+    return `<div class="card">
+      <div class="label">${ev['Test Code']} — ${ev.City} (${ev['Old Offer Price']}→${ev['New Offer Price']}, ${ev['Change Date']})</div>
+      <div class="value" style="font-size:16px">GM% ${bGmPct.toFixed(1)} → ${aGmPct.toFixed(1)}</div>
+      <div class="delta ${gmDelta>0?'up':gmDelta<0?'down':'flat'}">${gmDelta>0?'▲':gmDelta<0?'▼':'–'} ${Math.abs(gmDelta)}pp GM · ASP ${aspDelta===null?'n/a':(aspDelta>0?'▲':'▼')+' '+Math.abs(aspDelta)+'%'} (±${windowDays}d)</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="cards">${cards}</div>`;
+}
+
+// RISK-01 — static, ported from ASP_Action_Plan.xlsx §4 (see box note: no live Test Code<->package_code join yet)
+function drawRiskTable(){
+  const rows = [
+    {package_code:'PL124I', coupon:'SAVEBIGGER20', finding:'Flagged for price increase AND heavily discounted via this coupon', action:'Review/cap SAVEBIGGER20 eligibility on this SKU before executing its price move'},
+    {package_code:'PL334', coupon:'SAVEBIGGER20', finding:'Flagged for price increase AND heavily discounted via this coupon', action:'Review/cap SAVEBIGGER20 eligibility on this SKU before executing its price move'},
+    {package_code:'PL203', coupon:'SAVEBIGGER20', finding:'Flagged for price increase AND heavily discounted via this coupon', action:'Review/cap SAVEBIGGER20 eligibility on this SKU before executing its price move'},
+    {package_code:'PL91', coupon:'SAVEBIGGER20', finding:'Flagged for price increase AND heavily discounted via this coupon', action:'Review/cap SAVEBIGGER20 eligibility on this SKU before executing its price move'},
+  ];
+  renderTable('riskTable', ['package_code','coupon','finding','action'], rows);
 }
 function drawPriceTable(){
   const rows = DATA.Price_Change_Log || [];
@@ -334,6 +551,41 @@ function renderCoupon(){
   document.getElementById('couponSearch').oninput = drawCouponTable;
   drawCouponTable();
   drawDepthMarginChart();
+  drawStackHeatmap();
+}
+
+// COUP-01 — discount-stacking heatmap: week x n_disc_types, color = GM%
+function heatColor(gmPct){
+  // red (0%) -> amber (45%) -> green (90%+), matches the badge thresholds used elsewhere
+  const stops = [[0,176,42,42],[45,184,134,11],[90,30,126,52]]; // [pct, r,g,b]
+  let lo = stops[0], hi = stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    if(gmPct>=stops[i][0] && gmPct<=stops[i+1][0]){ lo=stops[i]; hi=stops[i+1]; break; }
+  }
+  const span = hi[0]-lo[0] || 1;
+  const t = Math.max(0, Math.min(1, (gmPct-lo[0])/span));
+  const r = Math.round(lo[1]+(hi[1]-lo[1])*t), g = Math.round(lo[2]+(hi[2]-lo[2])*t), b = Math.round(lo[3]+(hi[3]-lo[3])*t);
+  return `rgb(${r},${g},${b})`;
+}
+function drawStackHeatmap(){
+  const rows = DATA.Discount_Stacking_Summary || [];
+  const weeks = [...new Set(rows.map(r=>r.week_start))].sort();
+  const buckets = ['0','1','2','3+'];
+  const byKey = {};
+  rows.forEach(r=>{ byKey[`${r.week_start}|${r.n_disc_types}`] = r; });
+  let html = `<div style="display:grid;grid-template-columns:70px repeat(${weeks.length},1fr);gap:3px;font-size:11.5px;">`;
+  html += `<div></div>` + weeks.map(w=>`<div style="text-align:center;font-weight:600;color:var(--muted)">${w.slice(5)}</div>`).join('');
+  buckets.forEach(b=>{
+    html += `<div style="font-weight:600;color:var(--navy);display:flex;align-items:center">${b} disc</div>`;
+    weeks.forEach(w=>{
+      const r = byKey[`${w}|${b}`];
+      if(!r){ html += `<div style="background:#f0f2f5;border-radius:4px;height:38px"></div>`; return; }
+      const gm = num(r.gm_pct);
+      html += `<div title="${w}, ${b} discount type(s): ${gm.toFixed(1)}% GM, ${num(r.bookings).toLocaleString()} bookings" style="background:${heatColor(gm)};border-radius:4px;height:38px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;">${gm.toFixed(0)}%</div>`;
+    });
+  });
+  html += `</div>`;
+  document.getElementById('stackHeatmap').innerHTML = html;
 }
 function drawCouponTable(){
   const rows = DATA.Coupon_Summary || [];
@@ -384,6 +636,30 @@ function renderPackages(){
   populateSelect('weekFilter', [...new Set(rows.map(r=>r.week_start))].sort());
   ['pkgFilter','cityFilter','weekFilter'].forEach(id=>document.getElementById(id).onchange = drawPkgTable);
   drawPkgTable();
+  document.getElementById('pkgFullSearch').oninput = drawPkgFullTable;
+  drawPkgFullTable();
+}
+
+// PKG-01 — full-universe package GM% ranking
+function drawPkgFullTable(){
+  const rows = DATA.Package_GM_Summary || [];
+  const search = (document.getElementById('pkgFullSearch').value||'').toLowerCase();
+  let filtered = rows.filter(r => !search || (r.package_code||'').toLowerCase().includes(search));
+  filtered = filtered.sort((a,b)=>num(b.bookings)-num(a.bookings));
+  const cols = ['package_code','bookings','gm_sum','revenue_sum','gm_pct','asp'];
+  renderTable('pkgFullTable', cols, filtered, (row,col) => {
+    if(col==='package_code'){
+      const isCombo = String(row.is_combo)==='True';
+      return `${row.package_code}${isCombo?' <span class="badge amber">combo</span>':''}`;
+    }
+    if(col==='gm_pct'){
+      const v = num(row[col]);
+      const cls = v>=65?'green':v>=45?'amber':'red';
+      return `<span class="badge ${cls}">${v.toFixed(1)}%</span>`;
+    }
+    if(col==='gm_sum'||col==='revenue_sum') return Math.round(num(row[col])).toLocaleString();
+    return row[col];
+  });
 }
 function drawPkgTable(){
   const rows = DATA.Booking_Summary || [];
@@ -394,6 +670,168 @@ function drawPkgTable(){
   filtered = filtered.sort((a,b)=>num(b.bookings)-num(a.bookings));
   const cols = ['week_start','package_bucket','city_bucket','bookings','gm_sum','revenue_sum','gm_pct'];
   renderTable('pkgTable', cols, filtered, (row,col) => {
+    if(col==='gm_pct'){
+      const v = num(row[col]);
+      const cls = v>=65?'green':v>=45?'amber':'red';
+      return `<span class="badge ${cls}">${v.toFixed(1)}%</span>`;
+    }
+    if(col==='gm_sum'||col==='revenue_sum') return Math.round(num(row[col])).toLocaleString();
+    return row[col];
+  });
+}
+
+// ---------- SEGMENTS ----------
+function renderSegments(){
+  const seg = DATA.Segment_Summary || [];
+
+  // SEG-01: Fresh vs Repeat, 3 small multiples, blended across category/city
+  const weeks = [...new Set(seg.map(r=>r.week_start))].sort();
+  const byWeekFlag = {};
+  seg.forEach(r=>{
+    const k = `${r.week_start}|${r.booking_flag}`;
+    if(!byWeekFlag[k]) byWeekFlag[k] = {bookings:0, gm:0, rev:0};
+    byWeekFlag[k].bookings += num(r.bookings);
+    byWeekFlag[k].gm += num(r.gm_sum);
+    byWeekFlag[k].rev += num(r.revenue_sum);
+  });
+  const seriesFor = (flag,metric) => weeks.map(w=>{
+    const b = byWeekFlag[`${w}|${flag}`];
+    if(!b) return null;
+    if(metric==='gm_pct') return b.rev? b.gm/b.rev*100 : null;
+    if(metric==='aov') return b.bookings? b.rev/b.bookings : null;
+    return b.bookings;
+  });
+  const flagChart = (id, metric, yLabel) => drawChart(id,'line',{
+    labels: weeks,
+    datasets:[
+      {label:'Fresh', data: seriesFor('Fresh',metric), borderColor:'#1e7e34', backgroundColor:'rgba(30,126,52,0.08)', tension:0.2},
+      {label:'Repeat', data: seriesFor('Repeat',metric), borderColor:'#1F4E78', backgroundColor:'rgba(31,78,120,0.08)', tension:0.2},
+    ]
+  },{scales:{y:{title:{display:true,text:yLabel}}}});
+  flagChart('chartSegGm','gm_pct','GM %');
+  flagChart('chartSegAov','aov','₹');
+  flagChart('chartSegVol','bookings','Bookings');
+
+  // SEG-02: customer_category comparison, latest week, metric-selectable
+  document.getElementById('segMetric').onchange = drawCatCompareChart;
+  drawCatCompareChart();
+
+  // SEG-03: VIP Gold fresh-share trend
+  const vipGold = seg.filter(r=>r.customer_category==='vip gold');
+  const byWeekVG = {};
+  vipGold.forEach(r=>{
+    if(!byWeekVG[r.week_start]) byWeekVG[r.week_start] = {fresh:0, repeat:0};
+    byWeekVG[r.week_start][r.booking_flag==='Fresh'?'fresh':'repeat'] += num(r.bookings);
+  });
+  const vgWeeks = Object.keys(byWeekVG).sort();
+  const freshShare = vgWeeks.map(w=>{ const b=byWeekVG[w]; const tot=b.fresh+b.repeat; return tot? b.fresh/tot*100 : null; });
+  if(charts['chartVipGoldShare']) charts['chartVipGoldShare'].destroy();
+  charts['chartVipGoldShare'] = new Chart(document.getElementById('chartVipGoldShare'), {
+    data:{
+      labels: vgWeeks,
+      datasets:[
+        {type:'bar', label:'Fresh bookings', data: vgWeeks.map(w=>byWeekVG[w].fresh), backgroundColor:'#1e7e34', stack:'vol', yAxisID:'y'},
+        {type:'bar', label:'Repeat bookings', data: vgWeeks.map(w=>byWeekVG[w].repeat), backgroundColor:'#1F4E78', stack:'vol', yAxisID:'y'},
+        {type:'line', label:'Fresh share %', data: freshShare, borderColor:'#c9a227', backgroundColor:'#c9a227', tension:0.2, yAxisID:'y1'},
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ position:'left', title:{display:true,text:'Bookings'} }, y1:{ position:'right', title:{display:true,text:'Fresh share %'}, grid:{drawOnChartArea:false}, min:0, max:100 } }
+    }
+  });
+}
+function drawCatCompareChart(){
+  const seg = DATA.Segment_Summary || [];
+  const metric = document.getElementById('segMetric').value;
+  const weeks = [...new Set(seg.map(r=>r.week_start))].sort();
+  const latest = weeks[weeks.length-1];
+  const byCat = {};
+  seg.filter(r=>r.week_start===latest).forEach(r=>{
+    if(!byCat[r.customer_category]) byCat[r.customer_category] = {bookings:0, gm:0, rev:0};
+    byCat[r.customer_category].bookings += num(r.bookings);
+    byCat[r.customer_category].gm += num(r.gm_sum);
+    byCat[r.customer_category].rev += num(r.revenue_sum);
+  });
+  const cats = ['regular','vip','vip gold'].filter(c=>byCat[c]);
+  const values = cats.map(c=>{
+    const b = byCat[c];
+    if(metric==='gm_pct') return b.rev? b.gm/b.rev*100 : 0;
+    if(metric==='asp') return b.bookings? b.rev/b.bookings : 0;
+    return b.bookings;
+  });
+  drawChart('chartCatCompare','bar',{
+    labels: cats,
+    datasets:[{label: metric==='gm_pct'?'GM %':metric==='asp'?'AOV (₹)':'Bookings', data: values, backgroundColor:'#1F4E78'}]
+  },{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}});
+}
+
+// ---------- CHANNELS ----------
+function renderChannels(){
+  const chan = DATA.Channel_Summary || [];
+  const weeks = [...new Set(chan.map(r=>r.week_start))].sort();
+  const channels = ['Self','Sales','Phlebo'];
+  const byWeekChan = {};
+  chan.forEach(r=>{
+    const k = `${r.week_start}|${r.booked_by}`;
+    if(!byWeekChan[k]) byWeekChan[k] = {bookings:0, gm:0, rev:0};
+    byWeekChan[k].bookings += num(r.bookings);
+    byWeekChan[k].gm += num(r.gm_sum);
+    byWeekChan[k].rev += num(r.revenue_sum);
+  });
+  const blendedGmPct = weeks.map(w=>{
+    let gm=0, rev=0;
+    channels.forEach(c=>{ const b=byWeekChan[`${w}|${c}`]; if(b){ gm+=b.gm; rev+=b.rev; } });
+    return rev? gm/rev*100 : null;
+  });
+  const colors = {Self:'#1F4E78', Sales:'#c9a227', Phlebo:'#1e7e34'};
+  if(charts['chartChannelTrend']) charts['chartChannelTrend'].destroy();
+  charts['chartChannelTrend'] = new Chart(document.getElementById('chartChannelTrend'), {
+    data:{
+      labels: weeks,
+      datasets:[
+        ...channels.map(c=>({
+          type:'line', label:c, data: weeks.map(w=>{const b=byWeekChan[`${w}|${c}`]; return b?b.bookings:0;}),
+          borderColor: colors[c], backgroundColor: colors[c]+'33', fill:true, stack:'vol', tension:0.15, yAxisID:'y'
+        })),
+        {type:'line', label:'Blended GM %', data: blendedGmPct, borderColor:'#b02a2a', borderDash:[5,3], yAxisID:'y1', tension:0.15},
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ position:'left', stacked:true, title:{display:true,text:'Bookings'} }, y1:{ position:'right', title:{display:true,text:'GM %'}, grid:{drawOnChartArea:false} } }
+    }
+  });
+}
+
+// ---------- GEOGRAPHY ----------
+function renderGeography(){
+  const geo = DATA.Geo_Summary || [];
+  const byCity = {};
+  geo.forEach(r=>{
+    if(!byCity[r.city]) byCity[r.city] = {bookings:0, gm:0, rev:0};
+    byCity[r.city].bookings += num(r.bookings);
+    byCity[r.city].gm += num(r.gm_sum);
+    byCity[r.city].rev += num(r.revenue_sum);
+  });
+  const cityRows = Object.entries(byCity)
+    .filter(([c])=>c!=='OTHER')
+    .map(([c,b])=>({city:c, bookings:b.bookings, gm_pct: b.rev? b.gm/b.rev*100:0}))
+    .sort((a,b)=>b.gm_pct-a.gm_pct);
+  drawChart('chartGeoRank','bar',{
+    labels: cityRows.map(r=>r.city),
+    datasets:[{label:'GM %', data: cityRows.map(r=>r.gm_pct), backgroundColor: cityRows.map(r=>r.gm_pct>=65?'#1e7e34':r.gm_pct>=45?'#b8860b':'#b02a2a')}]
+  },{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{title:{display:true,text:'GM %'}}}});
+
+  populateSelect('geoCityFilter', [...new Set(geo.map(r=>r.city))].sort());
+  document.getElementById('geoCityFilter').onchange = drawGeoTable;
+  drawGeoTable();
+}
+function drawGeoTable(){
+  const rows = DATA.Geo_Summary || [];
+  const city = document.getElementById('geoCityFilter').value;
+  let filtered = rows.filter(r => !city || r.city===city);
+  filtered = filtered.sort((a,b)=>num(b.bookings)-num(a.bookings));
+  const cols = ['week_start','city','zone','bookings','gm_sum','revenue_sum','gm_pct','asp'];
+  renderTable('geoTable', cols, filtered, (row,col) => {
     if(col==='gm_pct'){
       const v = num(row[col]);
       const cls = v>=65?'green':v>=45?'amber':'red';
@@ -469,6 +907,10 @@ document.getElementById('tabs').addEventListener('click', e=>{
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   e.target.classList.add('active');
   document.getElementById('panel-'+e.target.dataset.tab).classList.add('active');
+  // charts built while their panel was display:none can be constructed at 0x0 --
+  // ResizeObserver doesn't reliably fire on the display:none -> block transition,
+  // so force every chart to re-measure its now-visible canvas.
+  Object.values(charts).forEach(c => c && c.resize());
 });
 
 loadAll();
