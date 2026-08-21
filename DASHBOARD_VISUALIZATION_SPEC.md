@@ -209,5 +209,5 @@ Already live (`Coupon Performance` tab, bubble chart). No change needed — just
 3. `&headers=1` on every gviz fetch, no exceptions.
 4. GM = Collected Net Revenue − cpt. Never substitute a different cost basis.
 5. Flag partial/unreliable dates visually wherever a chart could otherwise imply confidence it doesn't have (see CADENCE-01, and the Aug 17-20 collection-lag pattern already seen once in this data).
-6. One file, no build step, Chart.js from CDN — matches this repo's and the two sibling Redcliffe dashboards' conventions.
+6. One file, no build step — matches this repo's and the two sibling Redcliffe dashboards' conventions. Chart.js is vendored inline in `index.html` (not CDN-loaded, see CLAUDE.md) — keep it that way, don't reintroduce a CDN `<script src>`.
 7. When a visualization here duplicates or supersedes a finding currently written as prose in `V5_Methodology.md` (e.g. SEG-03 vs. the VIP Gold AOV gap writeup), update that doc to point at the live chart once built and verified — don't let the two drift into contradicting each other.
