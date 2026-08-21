@@ -119,8 +119,14 @@
     </div>
     <div class="box">
       <h3>Revenue → GM waterfall (FIN-01)</h3>
-      <div class="note" id="waterfallNote">Latest clean week — offer price down through each discount type to Collected Net Revenue, then minus cpt to GM. Excludes collection-lag rows (GM not yet computed) so it reconciles exactly.</div>
-      <canvas id="chartWaterfall" style="max-height:320px"></canvas>
+      <div class="note" id="waterfallNote">Offer price down through each discount type to Collected Net Revenue, then minus cpt to GM. Excludes collection-lag rows (GM not yet computed) so it reconciles exactly.</div>
+      <div class="filters">
+        <select id="finWeekSelect"></select>
+      </div>
+      <div class="cards" id="finDeltaStrip"></div>
+      <canvas id="chartWaterfall" style="max-height:340px"></canvas>
+      <div class="note" style="margin-top:14px">8-week GM% trend — is this week typical or an outlier?</div>
+      <canvas id="chartFinTrend8wk" style="max-height:110px"></canvas>
     </div>
   </section>
 
@@ -390,7 +396,7 @@ function renderOverview(){
   },{plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}});
 
   drawDailyTrendChart();
-  drawWaterfallChart();
+  renderFinSection();
 }
 
 // CADENCE-01 — true day-on-day trend, DoD_Summary blended across all package/city buckets
@@ -422,47 +428,201 @@ function drawDailyTrendChart(){
   });
 }
 
-// FIN-01 — revenue-to-GM waterfall, latest clean week in Financial_Waterfall_Summary
-function drawWaterfallChart(){
-  const fin = DATA.Financial_Waterfall_Summary || [];
-  if(!fin.length) return;
-  const row = [...fin].sort((a,b)=>String(a.week_start).localeCompare(String(b.week_start))).slice(-1)[0];
+// FIN-01 — revenue-to-GM waterfall with WoW comparison (DASHBOARD_VISUALIZATION_SPEC.md FIN-01 addendum)
+const FIN_STEP_DEFS = [
+  {label:'Offer Price', col:'offer_price_sum', isTotal:true},
+  {label:'Special Disc', col:'special_discount_sum', isTotal:false},
+  {label:'VIP Disc', col:'vip_discount_sum', isTotal:false},
+  {label:'Coupon Disc', col:'coupon_discount_sum', isTotal:false},
+  {label:'Redcash', col:'redcash_sum', isTotal:false},
+  {label:'Giftcard', col:'giftcard_sum', isTotal:false},
+  {label:'Net Revenue', col:'collected_net_revenue_sum', isTotal:true},
+  {label:'cpt', col:'cpt_sum', isTotal:false},
+  {label:'GM', col:'gm_sum', isTotal:true},
+];
+const FIN_DISCOUNT_COLS = ['special_discount_sum','vip_discount_sum','coupon_discount_sum','redcash_sum','giftcard_sum'];
+
+function parseYmd(s){ return new Date(String(s)+'T00:00:00'); }
+
+// Settings has a duplicate `clean_window` key (flagged in CLAUDE.md) -- take the row
+// with the later end date rather than trusting row order.
+function getCleanWindow(){
+  const rows = (DATA.Settings||[]).filter(r=>r.key==='clean_window');
+  let best = null;
+  rows.forEach(r=>{
+    const parts = String(r.value||'').split(' to ');
+    if(parts.length!==2) return;
+    const end = parseYmd(parts[1].trim());
+    if(!best || end > best.end) best = { start: parseYmd(parts[0].trim()), end };
+  });
+  return best;
+}
+function isWeekComplete(weekStart, cleanEnd){
+  if(!cleanEnd) return true;
+  const end = parseYmd(weekStart); end.setDate(end.getDate()+6);
+  return end <= cleanEnd;
+}
+function finRowsSorted(){
+  return [...(DATA.Financial_Waterfall_Summary||[])].sort((a,b)=>String(a.week_start).localeCompare(String(b.week_start)));
+}
+
+// FIN-01a — week selector, defaults to the latest COMPLETE week, not just the latest row
+function renderFinSection(){
+  const rows = finRowsSorted();
+  const sel = document.getElementById('finWeekSelect');
+  if(!rows.length){ sel.innerHTML = '<option>No data</option>'; return; }
+  const cleanWindow = getCleanWindow();
+  const completeWeeks = rows.filter(r=>isWeekComplete(r.week_start, cleanWindow?cleanWindow.end:null));
+  const defaultRow = completeWeeks.length ? completeWeeks[completeWeeks.length-1] : rows[rows.length-1];
+
+  sel.innerHTML = rows.map(r=>{
+    const complete = isWeekComplete(r.week_start, cleanWindow?cleanWindow.end:null);
+    return `<option value="${r.week_start}"${r.week_start===defaultRow.week_start?' selected':''}>Week of ${r.week_start}${complete?'':' (partial)'}</option>`;
+  }).join('');
+  sel.onchange = () => drawFinAll(sel.value);
+  drawFinAll(defaultRow.week_start);
+}
+
+function drawFinAll(weekStart){
+  const rows = finRowsSorted();
+  const idx = rows.findIndex(r=>r.week_start===weekStart);
+  if(idx<0) return;
+  const row = rows[idx];
+  const prior = idx>0 ? rows[idx-1] : null;
+  const cleanWindow = getCleanWindow();
+  const priorPartial = prior ? !isWeekComplete(prior.week_start, cleanWindow?cleanWindow.end:null) : false;
+
   document.getElementById('waterfallNote').textContent =
     `Week of ${row.week_start} — offer price down through each discount type to Collected Net Revenue, then minus cpt to GM. Excludes collection-lag rows so it reconciles exactly.`;
 
-  const steps = [
-    ['Offer Price', num(row.offer_price_sum), true],
-    ['Special Disc', -num(row.special_discount_sum), false],
-    ['VIP Disc', -num(row.vip_discount_sum), false],
-    ['Coupon Disc', -num(row.coupon_discount_sum), false],
-    ['Redcash', -num(row.redcash_sum), false],
-    ['Giftcard', -num(row.giftcard_sum), false],
-    ['Net Revenue', num(row.collected_net_revenue_sum), true],
-    ['cpt', -num(row.cpt_sum), false],
-    ['GM', num(row.gm_sum), true],
+  drawFinDeltaStrip(row, prior, priorPartial);
+  drawWaterfallChart(row, prior);
+  drawFinTrend8wk(rows, row.week_start);
+}
+
+// FIN-01b — WoW delta strip: Offer Price, Net Revenue, GM, GM%
+function drawFinDeltaStrip(row, prior, priorPartial){
+  const el = document.getElementById('finDeltaStrip');
+  const gmPct = num(row.collected_net_revenue_sum) ? num(row.gm_sum)/num(row.collected_net_revenue_sum)*100 : 0;
+  const metrics = [
+    {label:'Offer Price (₹)', val: num(row.offer_price_sum), fmt: v=>'₹'+(v/100000).toFixed(1)+'L'},
+    {label:'Net Revenue (₹)', val: num(row.collected_net_revenue_sum), fmt: v=>'₹'+(v/100000).toFixed(1)+'L'},
+    {label:'GM (₹)', val: num(row.gm_sum), fmt: v=>'₹'+(v/100000).toFixed(1)+'L'},
+    {label:'GM %', val: gmPct, fmt: v=>v.toFixed(1)+'%'},
   ];
-  let cum = 0;
-  const ranges = [], colors = [];
-  steps.forEach(([label, val, isTotal])=>{
-    if(isTotal){
-      ranges.push([0, val]);
-      colors.push('#1F4E78');
-      cum = val;
+  const priorGmPct = prior && num(prior.collected_net_revenue_sum) ? num(prior.gm_sum)/num(prior.collected_net_revenue_sum)*100 : null;
+  const priorVals = prior ? [num(prior.offer_price_sum), num(prior.collected_net_revenue_sum), num(prior.gm_sum), priorGmPct] : [null,null,null,null];
+
+  el.innerHTML = metrics.map((m,i)=>{
+    const pv = priorVals[i];
+    let deltaHtml;
+    if(pv===null || pv===undefined){
+      deltaHtml = `<span class="delta flat">no prior week</span>`;
     } else {
-      const start = cum, end = cum + val;
-      ranges.push([Math.min(start,end), Math.max(start,end)]);
-      colors.push(val < 0 ? '#b02a2a' : '#1e7e34');
-      cum = end;
+      const d = pv ? ((m.val-pv)/Math.abs(pv)*100) : null;
+      const cls = d===null?'flat':d>0.3?'up':d<-0.3?'down':'flat';
+      const arrow = d===null?'–':d>0.3?'▲':d<-0.3?'▼':'–';
+      const dTxt = d===null?'n/a':Math.abs(d).toFixed(1)+'%';
+      const partialTag = priorPartial ? ' · vs. partial week — directional only' : '';
+      deltaHtml = `<span class="delta ${cls}">${arrow} ${dTxt} WoW${partialTag}</span>`;
+    }
+    return `<div class="card"><div class="label">${m.label}</div><div class="value">${m.fmt(m.val)}</div>${deltaHtml}</div>`;
+  }).join('');
+}
+
+// FIN-01c/d — waterfall with bar-level %-of-offer + WoW annotations, biggest-mover discount highlighted
+function drawWaterfallChart(row, prior){
+  let cum = 0;
+  const offerBase = num(row.offer_price_sum) || 1;
+  const ranges = [], colors = [], borderWidths = [], pctLabels = [], wowLabels = [], costLikes = [];
+
+  // FIN-01d: biggest mover among the 5 discount categories, by absolute WoW %
+  let biggestMoverCol = null, biggestMoverAbs = -1;
+  if(prior){
+    FIN_DISCOUNT_COLS.forEach(col=>{
+      const pv = num(prior[col]);
+      if(!pv) return;
+      const wow = Math.abs((num(row[col])-pv)/pv);
+      if(wow > biggestMoverAbs){ biggestMoverAbs = wow; biggestMoverCol = col; }
+    });
+  }
+
+  FIN_STEP_DEFS.forEach(({label,col,isTotal})=>{
+    const raw = num(row[col]);
+    const val = isTotal ? raw : -raw;
+    let start, end;
+    if(isTotal){ start=0; end=val; cum=val; }
+    else { start=cum; end=cum+val; cum=end; }
+    ranges.push([Math.min(start,end), Math.max(start,end)]);
+    const isBiggestMover = col===biggestMoverCol;
+    colors.push(isTotal ? '#1F4E78' : (val<0 ? (isBiggestMover?'#8a1f1f':'#b02a2a') : '#1e7e34'));
+    borderWidths.push(isBiggestMover ? 3 : 0);
+    costLikes.push(!isTotal);
+    pctLabels.push(`${(raw/offerBase*100).toFixed(0)}% of offer`);
+    if(prior){
+      const pv = num(prior[col]);
+      if(pv){
+        const wow = (raw-pv)/pv*100;
+        wowLabels.push(`${wow>=0?'▲':'▼'}${Math.abs(wow).toFixed(0)}% WoW${isBiggestMover?' (biggest mover)':''}`);
+      } else if(raw){
+        wowLabels.push(`new this wk${isBiggestMover?' (biggest mover)':''}`);
+      } else {
+        wowLabels.push('₹0 both wks');
+      }
+    } else {
+      wowLabels.push('no prior wk');
     }
   });
-  drawChart('chartWaterfall','bar',{
-    labels: steps.map(s=>s[0]),
-    datasets:[{ data: ranges, backgroundColor: colors, borderRadius:3 }]
+
+  const barLabelPlugin = {
+    id: 'finBarLabels',
+    afterDatasetsDraw(chart){
+      const {ctx} = chart;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = '10px -apple-system,Segoe UI,sans-serif';
+      ctx.textAlign = 'center';
+      meta.data.forEach((bar,i)=>{
+        const topY = Math.min(bar.y, bar.base) - 6;
+        ctx.fillStyle = '#5b6b7c';
+        ctx.fillText(pctLabels[i], bar.x, topY);
+        // cost-like segments (discounts, cpt): a rise is bad, so invert the up=green convention
+        // used for the offer/revenue/GM totals -- avoids reading a bigger discount as "good news".
+        const up = wowLabels[i].startsWith('▲'), down = wowLabels[i].startsWith('▼');
+        const favorable = costLikes[i] ? down : up;
+        ctx.fillStyle = up||down ? (favorable?'#1e7e34':'#b02a2a') : '#9aa5b1';
+        ctx.fillText(wowLabels[i], bar.x, topY-11);
+      });
+      ctx.restore();
+    }
+  };
+
+  if(charts['chartWaterfall']) charts['chartWaterfall'].destroy();
+  charts['chartWaterfall'] = new Chart(document.getElementById('chartWaterfall'), {
+    type:'bar',
+    data:{ labels: FIN_STEP_DEFS.map(s=>s.label), datasets:[{ data: ranges, backgroundColor: colors, borderColor:'#8a1f1f', borderWidth: borderWidths, borderRadius:3 }] },
+    options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:26}},
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => {
+        const [lo,hi] = ctx.raw; return `₹${Math.round(hi-lo).toLocaleString()} (${pctLabels[ctx.dataIndex]}, ${wowLabels[ctx.dataIndex]})`;
+      }}}},
+      scales:{ y:{ title:{display:true,text:'₹'} } }
+    },
+    plugins:[barLabelPlugin]
+  });
+}
+
+// FIN-01e — 8-week GM% trend strip, selected week marked
+function drawFinTrend8wk(allRows, selectedWeek){
+  const last8 = allRows.slice(-8);
+  const gmPcts = last8.map(r=> num(r.collected_net_revenue_sum) ? num(r.gm_sum)/num(r.collected_net_revenue_sum)*100 : null);
+  const pointColors = last8.map(r=> r.week_start===selectedWeek ? '#c9a227' : '#1F4E78');
+  const pointRadii = last8.map(r=> r.week_start===selectedWeek ? 6 : 3);
+  drawChart('chartFinTrend8wk','line',{
+    labels: last8.map(r=>r.week_start),
+    datasets:[{ data: gmPcts, borderColor:'#1F4E78', backgroundColor:'rgba(31,78,120,0.06)', fill:true, tension:0.2, pointBackgroundColor:pointColors, pointRadius:pointRadii }]
   },{
-    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => {
-      const [lo,hi] = ctx.raw; return `₹${Math.round(hi-lo).toLocaleString()}`;
-    }}}},
-    scales:{ y:{ title:{display:true,text:'₹'} } }
+    plugins:{ legend:{display:false} },
+    scales:{ y:{ title:{display:true,text:'GM %'} } }
   });
 }
 
