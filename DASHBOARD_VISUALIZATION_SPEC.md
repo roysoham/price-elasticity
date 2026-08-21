@@ -182,6 +182,30 @@ Already live (`Coupon Performance` tab, bubble chart). No change needed — just
 **Chart**: waterfall (Chart.js doesn't have a native waterfall type — build with a stacked bar using invisible "base" segments, standard technique, or add the `chartjs-chart-financial`/floating-bar approach; don't add a whole new charting library for this one chart).
 **Caveats**: this must reconcile exactly to `GM = Collected Net Revenue − cpt` — if the waterfall's ending value doesn't match `gm_sum` from other tabs for the same week, that's a bug, not a rounding footnote. Sanity-check before shipping.
 
+#### FIN-01 Addendum — WoW comparison, highlights, and diffs (post-v1 upgrade)
+
+**Status: no new backend tab required.** `Financial_Waterfall_Summary` is already one row per `week_start` with no other dimension — WoW comparison only needs the client to read the two most recent rows instead of one. Do not build a `Financial_Waterfall_WoW` tab; that would just be a client-side computation pushed server-side for no reason.
+
+**No new npm/CDN package required for the core upgrade.** Everything below (delta cards, % labels, biggest-mover highlight, GM% overlay) is computable from data already in the tab, using vanilla Chart.js + DOM. Two optional CDN adds, only if the zero-dependency version proves too fiddly to build/maintain — evaluate default-first, only reach for these if needed:
+- `chartjs-plugin-annotation` (cdnjs, MIT) — for the biggest-mover highlight box/label, if hand-rolled border/color styling on the bar dataset isn't legible enough.
+- A tiny inline SVG helper (no package — just a `<svg>` template function) for the per-category sparklines below, not a sparkline library. Don't add `sparkline.js` or similar for six 40px charts.
+
+**FIN-01a — Week selector.** Dropdown (or prev/next arrows) bound to distinct `week_start` values in `Financial_Waterfall_Summary`, defaulting to the latest **complete** week per `Settings.clean_window` (not necessarily the literal latest row — respect the same partial-week exclusion CADENCE-01 uses). Re-render the waterfall, delta strip, and highlight on change. This is the prerequisite for everything else below — build it first.
+
+**FIN-01b — WoW delta strip.** Row of stat cards above the waterfall: Offer Price, Net Revenue, GM, GM%. Each card shows the selected week's value plus WoW % change vs. the prior row in the same tab, arrow + color (green = GM/GM% up or discount-sum down, red = inverse — signs are opposite for the discount categories vs. the revenue/GM categories, don't apply one universal green-is-up rule blindly). If the prior week is a partial/collection-lag week per `Settings.clean_window`, badge the delta as "vs. partial week — directional only" rather than presenting it as a clean comparison.
+
+**FIN-01c — Bar-level annotations.** On each waterfall segment: (1) label with % of `offer_price_sum` for that week, so viewers see relative bite, not just absolute ₹; (2) WoW ₹ and % change for that specific category, small text beneath the segment label. Compute client-side as `(this_week[col] - last_week[col]) / last_week[col]`.
+
+**FIN-01d — Biggest-mover highlight.** Compute WoW % change for each discount category (Special/VIP/Coupon/Redcash/Giftcard), find the max absolute mover, visually distinguish that one bar (thicker border, distinct fill shade, or a small "▲ biggest mover" tag) so the chart answers "where should I look first" without the viewer scanning every label.
+
+**FIN-01e — 8-week GM% trend strip.** Small line chart (or sparkline row) beneath or beside the waterfall, GM% for the trailing 8 weeks from the same tab, with the currently-selected week marked. Answers "is this week's waterfall typical or an outlier" — pairs with CADENCE-02's WoW scorecard rather than duplicating it; this is a visual companion sized for the FIN-01 card specifically, CADENCE-02 remains the full table.
+
+**FIN-01f — Per-category 6-week sparkline (P2, optional polish).** Tiny inline-SVG sparkline under each category label (Special/VIP/Coupon/Redcash/Giftcard, 6-week trailing) — surfaces a slow-building stacking problem that a single-week waterfall can't show. Build only after FIN-01a–e are shipped and stable; skip if it adds meaningful load time on mobile.
+
+**Build order**: FIN-01a → FIN-01b → FIN-01c → FIN-01d → FIN-01e → FIN-01f. Each is independently shippable and testable — don't block b–f on f being finished.
+
+**Caveats (in addition to the v1 caveat above)**: WoW comparisons inherit the same collection-lag risk flagged throughout this repo — a WoW delta where either week touches the partial-day tail will read as more dramatic than reality. Reuse the `Settings.clean_window` logic already established for CADENCE-01 rather than inventing a second staleness rule.
+
 ### CADENCE-01 — True day-on-day trend
 **Data**: `DoD_Summary` (new, daily grain).
 **Chart**: line, daily GM%/bookings/revenue, with the known-partial-day dates (per `Settings.clean_window`) visually distinguished (dashed line segment or shaded region) rather than silently plotted as equal-confidence data.
@@ -209,5 +233,6 @@ Already live (`Coupon Performance` tab, bubble chart). No change needed — just
 3. `&headers=1` on every gviz fetch, no exceptions.
 4. GM = Collected Net Revenue − cpt. Never substitute a different cost basis.
 5. Flag partial/unreliable dates visually wherever a chart could otherwise imply confidence it doesn't have (see CADENCE-01, and the Aug 17-20 collection-lag pattern already seen once in this data).
-6. One file, no build step — matches this repo's and the two sibling Redcliffe dashboards' conventions. Chart.js is vendored inline in `index.html` (not CDN-loaded, see CLAUDE.md) — keep it that way, don't reintroduce a CDN `<script src>`.
+6. One file, no build step, Chart.js from CDN — matches this repo's and the two sibling Redcliffe dashboards' conventions.
 7. When a visualization here duplicates or supersedes a finding currently written as prose in `V5_Methodology.md` (e.g. SEG-03 vs. the VIP Gold AOV gap writeup), update that doc to point at the live chart once built and verified — don't let the two drift into contradicting each other.
+8. This spec is not read-only. Whoever implements a section should update it in the same change — mark items built (e.g. "✅ shipped" next to the ID), correct anything discovered to be wrong during implementation (file names, library choices, tab schemas), and add new addendum subsections the same way FIN-01's was added, rather than letting the spec drift stale against the live code.
