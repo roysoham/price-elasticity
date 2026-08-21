@@ -173,7 +173,9 @@
 
 <script>
 const SHEET_ID = "1lJfg79zQ1hQUKh_IHqkzzkTuUW9kdJGHfvg8bLcdTCk";
-const TABS = ["Settings","Price_Change_Log","Package_Info","Coupon_Settings_Log","Booking_Summary","Coupon_Summary"];
+const TABS = ["Settings","Price_Change_Log","Package_Info","Coupon_Settings_Log","Booking_Weekly_Summary","Coupon_Summary"];
+const ALIAS = {"Booking_Weekly_Summary":"Booking_Summary"}; // internal code still refers to Booking_Summary
+
 let DATA = {};
 let charts = {};
 
@@ -206,14 +208,15 @@ async function loadAll(){
   try{
     const results = await Promise.all(TABS.map(t => fetchSheet(t).catch(e => ({__error:t, msg:e.message}))));
     TABS.forEach((t,i) => {
+      const key = ALIAS[t] || t;
       if(results[i] && results[i].__error){
         errEl.innerHTML += `<div class="err">Could not load <b>${t}</b>: ${results[i].msg}. Check the sheet's sharing is "Anyone with the link → Viewer".</div>`;
-        DATA[t] = [];
+        DATA[key] = [];
       } else {
-        DATA[t] = results[i];
+        DATA[key] = results[i];
       }
     });
-    statusEl.textContent = `Loaded ${TABS.map(t=>`${t} (${DATA[t].length})`).join(' · ')} · ${new Date().toLocaleString()}`;
+    statusEl.textContent = `Loaded ${TABS.map(t=>{const k=ALIAS[t]||t; return `${t} (${DATA[k].length})`;}).join(' · ')} · ${new Date().toLocaleString()}`;
     renderAll();
   } catch(e){
     statusEl.textContent = "";
