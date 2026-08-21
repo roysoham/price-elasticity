@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GM Action Plan Dashboard — Redcliffe Labs</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#0b2e4f; --navy-light:#1F4E78; --gold:#c9a227; --green:#1e7e34; --red:#b02a2a; --amber:#b8860b;
+    --bg:#f4f6f9; --card:#ffffff; --border:#e1e6ec; --text:#1c2733; --muted:#5b6b7c;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+  header h1{margin:0;font-size:20px;font-weight:700;}
+  header .sub{font-size:12.5px;color:#c9d6e3;margin-top:3px;}
+  header button{background:var(--gold);border:none;color:#1c1c1c;font-weight:600;padding:9px 16px;border-radius:6px;cursor:pointer;font-size:13px;}
+  header button:hover{filter:brightness(1.05);}
+  nav{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--border);padding:0 24px;overflow-x:auto;position:sticky;top:0;z-index:5;}
+  nav button{background:none;border:none;padding:13px 16px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
+  nav button.active{color:var(--navy-light);border-bottom-color:var(--gold);}
+  main{padding:22px 28px 60px;max-width:1400px;margin:0 auto;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:20px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+  .card .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;}
+  .card .value{font-size:24px;font-weight:700;margin-top:6px;color:var(--navy);}
+  .card .delta{font-size:12px;margin-top:4px;font-weight:600;}
+  .up{color:var(--green);} .down{color:var(--red);} .flat{color:var(--muted);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+  .box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px;}
+  .box h3{margin:0 0 4px;font-size:14.5px;color:var(--navy);}
+  .box .note{font-size:12px;color:var(--muted);margin-bottom:10px;}
+  canvas{max-height:340px;}
+  table{width:100%;border-collapse:collapse;font-size:12.8px;}
+  th{background:#eef2f7;text-align:left;padding:8px 10px;font-weight:700;color:var(--navy);cursor:pointer;position:sticky;top:0;white-space:nowrap;}
+  th:hover{background:#e3e9f1;}
+  td{padding:7px 10px;border-bottom:1px solid #f0f2f5;white-space:nowrap;}
+  tr:hover td{background:#f8fafc;}
+  .tablewrap{max-height:520px;overflow:auto;border:1px solid var(--border);border-radius:8px;}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .filters select,.filters input{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;background:#fff;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge.green{background:#e4f5e8;color:var(--green);}
+  .badge.red{background:#fbe7e7;color:var(--red);}
+  .badge.amber{background:#fbf2e0;color:var(--amber);}
+  .badge.grey{background:#eceff2;color:var(--muted);}
+  .status{font-size:12px;color:var(--muted);margin-bottom:14px;}
+  .err{background:#fbe7e7;color:var(--red);padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:14px;}
+  .callout{background:#fff8e6;border:1px solid #f0dfa8;border-radius:8px;padding:12px 14px;font-size:12.8px;margin-bottom:16px;}
+  .callout b{color:var(--amber);}
+  footer{text-align:center;font-size:11.5px;color:var(--muted);padding:24px;}
+  a.src{color:var(--navy-light);}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>GM Action Plan Dashboard</h1>
+    <div class="sub">Redcliffe Labs · Price · Coupon · Segment tracking · Live from Google Sheets</div>
+  </div>
+  <button onclick="loadAll()">🔄 Refresh Data</button>
+</header>
+
+<nav id="tabs">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="price">Price Changes</button>
+  <button data-tab="coupon">Coupon Performance</button>
+  <button data-tab="packages">Package Explorer</button>
+  <button data-tab="rules">Coupon Rules</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<main>
+  <div id="status" class="status">Connecting to data source…</div>
+  <div id="errbox"></div>
+
+  <!-- OVERVIEW -->
+  <section class="panel active" id="panel-overview">
+    <div class="cards" id="kpiCards"></div>
+    <div class="callout" id="crossCheck"></div>
+    <div class="grid2">
+      <div class="box">
+        <h3>GM% trend by week</h3>
+        <div class="note">Blended across top-tracked packages/cities, Aug 1–16 clean window</div>
+        <canvas id="chartGmTrend"></canvas>
+      </div>
+      <div class="box">
+        <h3>Coupon concentration (latest week)</h3>
+        <div class="note">Share of bookings by coupon — watch for over-concentration</div>
+        <canvas id="chartConcentration"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICE CHANGES -->
+  <section class="panel" id="panel-price">
+    <div class="box">
+      <h3>Price Change Log</h3>
+      <div class="note">Executed uploads + this cycle's recommendations. "Change Date" blank = not yet dated — fill in Price_Change_Log once a move goes live to enable before/after impact tracking.</div>
+      <div class="filters">
+        <select id="priceCityFilter"><option value="">All cities</option></select>
+        <select id="priceStatusFilter">
+          <option value="">All statuses</option>
+          <option value="Yes">Uploaded</option>
+          <option value="Recommended">Recommended</option>
+          <option value="No">Not uploaded</option>
+        </select>
+      </div>
+      <div class="tablewrap"><table id="priceTable"></table></div>
+    </div>
+  </section>
+
+  <!-- COUPON PERFORMANCE -->
+  <section class="panel" id="panel-coupon">
+    <div class="box">
+      <h3>GM% vs. discount depth</h3>
+      <div class="note">Real GM% per coupon, joined via coupon_code — not revenue/AOV. Deeper discount = lower GM%, consistently.</div>
+      <canvas id="chartDepthMargin"></canvas>
+    </div>
+    <div class="box">
+      <h3>Coupon performance by week</h3>
+      <div class="filters">
+        <select id="couponWeekFilter"><option value="">All weeks</option></select>
+        <input id="couponSearch" placeholder="Search coupon code…">
+      </div>
+      <div class="tablewrap"><table id="couponTable"></table></div>
+    </div>
+  </section>
+
+  <!-- PACKAGE EXPLORER -->
+  <section class="panel" id="panel-packages">
+    <div class="box">
+      <h3>Booking Summary — package × city × week</h3>
+      <div class="note">Top-15 packages by volume × top-6 cities, Aug 1–16. OTHER buckets the long tail — see Settings for scope caveats.</div>
+      <div class="filters">
+        <select id="pkgFilter"><option value="">All packages</option></select>
+        <select id="cityFilter"><option value="">All cities</option></select>
+        <select id="weekFilter"><option value="">All weeks</option></select>
+      </div>
+      <div class="tablewrap"><table id="pkgTable"></table></div>
+    </div>
+  </section>
+
+  <!-- COUPON RULES -->
+  <section class="panel" id="panel-rules">
+    <div class="box">
+      <h3>Coupon CRM Settings (snapshot)</h3>
+      <div class="note">41 coupon rules as pulled — point-in-time, not an edit history. MOV/discount/upper-limit as currently configured.</div>
+      <div class="filters"><input id="rulesSearch" placeholder="Search coupon code…"></div>
+      <div class="tablewrap"><table id="rulesTable"></table></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="panel" id="panel-settings">
+    <div class="box">
+      <h3>Backend config</h3>
+      <div class="note">Edit the Settings tab in the Google Sheet to change thresholds — this dashboard reads them live, no code changes needed.</div>
+      <div class="tablewrap"><table id="settingsTable"></table></div>
+    </div>
+  </section>
+
+  <footer>
+    Source: <a class="src" href="https://docs.google.com/spreadsheets/d/1lJfg79zQ1hQUKh_IHqkzzkTuUW9kdJGHfvg8bLcdTCk/edit" target="_blank">Redcliffe GM Action Plan — Live</a> ·
+    Data basis: online_discount_summary Aug17MTD pull, Aug 1–16 clean window · See V5_Methodology.md for full caveats
+  </footer>
+</main>
+
+<script>
+const SHEET_ID = "1lJfg79zQ1hQUKh_IHqkzzkTuUW9kdJGHfvg8bLcdTCk";
+const TABS = ["Settings","Price_Change_Log","Package_Info","Coupon_Settings_Log","Booking_Summary","Coupon_Summary"];
+let DATA = {};
+let charts = {};
+
+function gvizUrl(sheet){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}&headers=1`;
+}
+
+async function fetchSheet(sheet){
+  const res = await fetch(gvizUrl(sheet));
+  if(!res.ok) throw new Error(`HTTP ${res.status} fetching ${sheet}`);
+  const text = await res.text();
+  const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}')+1);
+  const parsed = JSON.parse(jsonStr);
+  const cols = parsed.table.cols.map(c => c.label || c.id);
+  const rows = (parsed.table.rows||[]).map(r => {
+    const obj = {};
+    r.c.forEach((cell,i) => { obj[cols[i]] = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : ""; });
+    return obj;
+  });
+  return rows;
+}
+
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+async function loadAll(){
+  const statusEl = document.getElementById('status');
+  const errEl = document.getElementById('errbox');
+  errEl.innerHTML = "";
+  statusEl.textContent = "Loading from Google Sheets…";
+  try{
+    const results = await Promise.all(TABS.map(t => fetchSheet(t).catch(e => ({__error:t, msg:e.message}))));
+    TABS.forEach((t,i) => {
+      if(results[i] && results[i].__error){
+        errEl.innerHTML += `<div class="err">Could not load <b>${t}</b>: ${results[i].msg}. Check the sheet's sharing is "Anyone with the link → Viewer".</div>`;
+        DATA[t] = [];
+      } else {
+        DATA[t] = results[i];
+      }
+    });
+    statusEl.textContent = `Loaded ${TABS.map(t=>`${t} (${DATA[t].length})`).join(' · ')} · ${new Date().toLocaleString()}`;
+    renderAll();
+  } catch(e){
+    statusEl.textContent = "";
+    errEl.innerHTML = `<div class="err">Failed to load data: ${e.message}. Check the sheet's sharing is set to "Anyone with the link → Viewer".</div>`;
+  }
+}
+
+function renderAll(){
+  renderOverview();
+  renderPrice();
+  renderCoupon();
+  renderPackages();
+  renderRules();
+  renderSettings();
+}
+
+// ---------- OVERVIEW ----------
+function renderOverview(){
+  const bs = DATA.Booking_Summary || [];
+  const weeks = [...new Set(bs.map(r=>r.week_start))].sort();
+  const latestWeek = weeks[weeks.length-1];
+  const prevWeek = weeks[weeks.length-2];
+  const latestRows = bs.filter(r=>r.week_start===latestWeek);
+  const prevRows = bs.filter(r=>r.week_start===prevWeek);
+
+  const sum = (rows,k) => rows.reduce((a,r)=>a+num(r[k]),0);
+  const bookings = sum(latestRows,'bookings'), gm = sum(latestRows,'gm_sum'), rev = sum(latestRows,'revenue_sum');
+  const pBookings = sum(prevRows,'bookings'), pGm = sum(prevRows,'gm_sum'), pRev = sum(prevRows,'revenue_sum');
+  const gmPct = rev ? (gm/rev*100) : 0;
+  const pGmPct = pRev ? (pGm/pRev*100) : 0;
+
+  const pct = (cur,prev) => prev ? (((cur-prev)/prev)*100).toFixed(1) : null;
+  const deltaHtml = (cur,prev,suffix='%') => {
+    const d = pct(cur,prev);
+    if(d===null) return `<span class="delta flat">no prior week</span>`;
+    const cls = d>0.3 ? 'up' : d<-0.3 ? 'down' : 'flat';
+    const arrow = d>0.3?'▲':d<-0.3?'▼':'–';
+    return `<span class="delta ${cls}">${arrow} ${Math.abs(d)}${suffix} vs prior wk</span>`;
+  };
+
+  document.getElementById('kpiCards').innerHTML = `
+    <div class="card"><div class="label">Bookings (wk of ${latestWeek||'—'})</div><div class="value">${bookings.toLocaleString()}</div>${deltaHtml(bookings,pBookings)}</div>
+    <div class="card"><div class="label">GM (₹)</div><div class="value">₹${(gm/100000).toFixed(1)}L</div>${deltaHtml(gm,pGm)}</div>
+    <div class="card"><div class="label">Revenue (₹)</div><div class="value">₹${(rev/100000).toFixed(1)}L</div>${deltaHtml(rev,pRev)}</div>
+    <div class="card"><div class="label">GM %</div><div class="value">${gmPct.toFixed(1)}%</div>${deltaHtml(gmPct,pGmPct,'pp')}</div>
+  `;
+
+  document.getElementById('crossCheck').innerHTML = `<b>Note:</b> Booking_Summary covers top-15 packages × top-6 cities only (see Settings tab) — these KPIs are directional, not a full-book total. Full-book totals live in Coupon_Summary's OTHER-inclusive rows.`;
+
+  // GM% trend chart
+  const trendByWeek = weeks.map(w => {
+    const rows = bs.filter(r=>r.week_start===w);
+    const g = sum(rows,'gm_sum'), r = sum(rows,'revenue_sum');
+    return r ? (g/r*100) : 0;
+  });
+  drawChart('chartGmTrend','line',{
+    labels: weeks,
+    datasets:[{label:'GM %', data:trendByWeek, borderColor:'#1F4E78', backgroundColor:'rgba(31,78,120,0.08)', tension:0.25, fill:true}]
+  },{scales:{y:{title:{display:true,text:'GM %'}}}});
+
+  // Coupon concentration donut
+  const cs = DATA.Coupon_Summary || [];
+  const csWeeks = [...new Set(cs.map(r=>r.week_start))].sort();
+  const latestCs = cs.filter(r=>r.week_start===csWeeks[csWeeks.length-1] && r.coupon_bucket!=='OTHER');
+  const sorted = latestCs.sort((a,b)=>num(b.bookings)-num(a.bookings)).slice(0,8);
+  drawChart('chartConcentration','doughnut',{
+    labels: sorted.map(r=>r.coupon_bucket),
+    datasets:[{data: sorted.map(r=>num(r.bookings)), backgroundColor:['#1F4E78','#c9a227','#1e7e34','#b02a2a','#6c757d','#8e6bb0','#2a9d8f','#e76f51']}]
+  },{plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}});
+}
+
+// ---------- PRICE ----------
+function renderPrice(){
+  const rows = DATA.Price_Change_Log || [];
+  populateSelect('priceCityFilter', [...new Set(rows.map(r=>r.City))].filter(Boolean).sort());
+  drawPriceTable();
+  document.getElementById('priceCityFilter').onchange = drawPriceTable;
+  document.getElementById('priceStatusFilter').onchange = drawPriceTable;
+}
+function drawPriceTable(){
+  const rows = DATA.Price_Change_Log || [];
+  const city = document.getElementById('priceCityFilter').value;
+  const status = document.getElementById('priceStatusFilter').value;
+  let filtered = rows.filter(r => (!city || r.City===city) && (!status || r['Price Upload']===status));
+  const cols = ['Test Code','Test Name','City','Old Offer Price','New Offer Price','Difference','Price Upload','Change Date','Source'];
+  renderTable('priceTable', cols, filtered, (row,col) => {
+    if(col==='Price Upload'){
+      const v = row[col];
+      const cls = v==='Yes'?'green':v==='Recommended'?'amber':'grey';
+      return `<span class="badge ${cls}">${v}</span>`;
+    }
+    return row[col];
+  });
+}
+
+// ---------- COUPON ----------
+function renderCoupon(){
+  const cs = DATA.Coupon_Summary || [];
+  populateSelect('couponWeekFilter', [...new Set(cs.map(r=>r.week_start))].sort());
+  document.getElementById('couponWeekFilter').onchange = drawCouponTable;
+  document.getElementById('couponSearch').oninput = drawCouponTable;
+  drawCouponTable();
+  drawDepthMarginChart();
+}
+function drawCouponTable(){
+  const rows = DATA.Coupon_Summary || [];
+  const week = document.getElementById('couponWeekFilter').value;
+  const search = document.getElementById('couponSearch').value.toLowerCase();
+  let filtered = rows.filter(r => (!week || r.week_start===week) && (!search || (r.coupon_bucket||'').toLowerCase().includes(search)));
+  filtered = filtered.sort((a,b)=>num(b.bookings)-num(a.bookings));
+  const cols = ['week_start','coupon_bucket','bookings','gm_sum','revenue_sum','gm_pct','repeat_share','avg_discount_pct'];
+  renderTable('couponTable', cols, filtered, (row,col) => {
+    if(col==='gm_pct'){
+      const v = num(row[col]);
+      const cls = v>=65?'green':v>=45?'amber':'red';
+      return `<span class="badge ${cls}">${v.toFixed(1)}%</span>`;
+    }
+    if(col==='gm_sum'||col==='revenue_sum') return Math.round(num(row[col])).toLocaleString();
+    return row[col];
+  });
+}
+function drawDepthMarginChart(){
+  const cs = (DATA.Coupon_Summary||[]).filter(r=>r.coupon_bucket!=='OTHER' && num(r.bookings)>=20);
+  // aggregate by coupon across weeks (weighted avg gm_pct, avg discount)
+  const byCoupon = {};
+  cs.forEach(r=>{
+    if(!byCoupon[r.coupon_bucket]) byCoupon[r.coupon_bucket] = {bookings:0, gm:0, rev:0, discSum:0, discN:0};
+    const b = byCoupon[r.coupon_bucket];
+    b.bookings += num(r.bookings); b.gm += num(r.gm_sum); b.rev += num(r.revenue_sum);
+    b.discSum += num(r.avg_discount_pct)*num(r.bookings); b.discN += num(r.bookings);
+  });
+  const pts = Object.entries(byCoupon).map(([name,b])=>({
+    x: b.discN? b.discSum/b.discN : 0,
+    y: b.rev? b.gm/b.rev*100 : 0,
+    label: name,
+    r: Math.max(4, Math.min(20, Math.sqrt(b.bookings)/3))
+  }));
+  drawChart('chartDepthMargin','bubble',{
+    datasets:[{label:'Coupon (bubble size = bookings)', data: pts, backgroundColor:'rgba(31,78,120,0.55)'}]
+  },{
+    plugins:{ tooltip:{callbacks:{label:(ctx)=>`${ctx.raw.label}: ${ctx.raw.x.toFixed(1)}% discount, ${ctx.raw.y.toFixed(1)}% GM`}}, legend:{display:false} },
+    scales:{ x:{title:{display:true,text:'Avg discount %'}}, y:{title:{display:true,text:'GM %'}} }
+  });
+}
+
+// ---------- PACKAGES ----------
+function renderPackages(){
+  const rows = DATA.Booking_Summary || [];
+  populateSelect('pkgFilter', [...new Set(rows.map(r=>r.package_bucket))].sort());
+  populateSelect('cityFilter', [...new Set(rows.map(r=>r.city_bucket))].sort());
+  populateSelect('weekFilter', [...new Set(rows.map(r=>r.week_start))].sort());
+  ['pkgFilter','cityFilter','weekFilter'].forEach(id=>document.getElementById(id).onchange = drawPkgTable);
+  drawPkgTable();
+}
+function drawPkgTable(){
+  const rows = DATA.Booking_Summary || [];
+  const pkg = document.getElementById('pkgFilter').value;
+  const city = document.getElementById('cityFilter').value;
+  const week = document.getElementById('weekFilter').value;
+  let filtered = rows.filter(r => (!pkg||r.package_bucket===pkg) && (!city||r.city_bucket===city) && (!week||r.week_start===week));
+  filtered = filtered.sort((a,b)=>num(b.bookings)-num(a.bookings));
+  const cols = ['week_start','package_bucket','city_bucket','bookings','gm_sum','revenue_sum','gm_pct'];
+  renderTable('pkgTable', cols, filtered, (row,col) => {
+    if(col==='gm_pct'){
+      const v = num(row[col]);
+      const cls = v>=65?'green':v>=45?'amber':'red';
+      return `<span class="badge ${cls}">${v.toFixed(1)}%</span>`;
+    }
+    if(col==='gm_sum'||col==='revenue_sum') return Math.round(num(row[col])).toLocaleString();
+    return row[col];
+  });
+}
+
+// ---------- RULES ----------
+function renderRules(){
+  document.getElementById('rulesSearch').oninput = drawRulesTable;
+  drawRulesTable();
+}
+function drawRulesTable(){
+  const rows = DATA.Coupon_Settings_Log || [];
+  const search = (document.getElementById('rulesSearch').value||'').toLowerCase();
+  const filtered = rows.filter(r => !search || (r['Coupon Code']||'').toLowerCase().includes(search));
+  const cols = ['Coupon Code','MOV','Type','Discount','Upper Limit Percentage','Is Red Cash','Create Date'];
+  renderTable('rulesTable', cols, filtered);
+}
+
+// ---------- SETTINGS ----------
+function renderSettings(){
+  const rows = DATA.Settings || [];
+  renderTable('settingsTable', ['key','value','notes'], rows);
+}
+
+// ---------- helpers ----------
+function populateSelect(id, values){
+  const el = document.getElementById(id);
+  const current = el.value;
+  el.innerHTML = `<option value="">${el.options[0].textContent}</option>` + values.map(v=>`<option value="${v}">${v}</option>`).join('');
+  el.value = current;
+}
+
+function renderTable(tableId, cols, rows, cellFn){
+  const table = document.getElementById(tableId);
+  let sortCol = table.dataset.sortCol || cols[0];
+  let sortDir = table.dataset.sortDir || 'asc';
+  const sorted = [...rows].sort((a,b)=>{
+    const av = a[sortCol], bv = b[sortCol];
+    const an = parseFloat(av), bn = parseFloat(bv);
+    let cmp;
+    if(!isNaN(an) && !isNaN(bn)) cmp = an-bn;
+    else cmp = String(av||'').localeCompare(String(bv||''));
+    return sortDir==='asc' ? cmp : -cmp;
+  });
+  const thead = `<thead><tr>${cols.map(c=>`<th data-col="${c}">${c}${sortCol===c ? (sortDir==='asc'?' ▲':' ▼') : ''}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${sorted.map(r=>`<tr>${cols.map(c=>`<td>${cellFn?cellFn(r,c):(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  table.innerHTML = thead+tbody;
+  table.querySelectorAll('th').forEach(th=>{
+    th.onclick = () => {
+      const col = th.dataset.col;
+      if(table.dataset.sortCol===col) table.dataset.sortDir = table.dataset.sortDir==='asc'?'desc':'asc';
+      else { table.dataset.sortCol = col; table.dataset.sortDir = 'asc'; }
+      renderTable(tableId, cols, rows, cellFn);
+    };
+  });
+}
+
+function drawChart(id, type, data, options){
+  const ctx = document.getElementById(id);
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, {type, data, options: Object.assign({responsive:true, maintainAspectRatio:false},options||{})});
+}
+
+// tabs
+document.getElementById('tabs').addEventListener('click', e=>{
+  if(e.target.tagName!=='BUTTON') return;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('panel-'+e.target.dataset.tab).classList.add('active');
+});
+
+loadAll();
+</script>
+</body>
+</html>
