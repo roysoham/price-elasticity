@@ -2,10 +2,11 @@
 
 Read this whole file before touching anything. This repo powers a live GM (gross margin) improvement dashboard for Redcliffe Labs, an Indian diagnostics company. It's the code layer of a larger analysis chain that started as chat-based Excel work and is now moving to code + a live Google Sheets backend + a Netlify-hosted static dashboard.
 
+**Expanding the dashboard's visualizations?** Read `DASHBOARD_VISUALIZATION_SPEC.md` in this same repo root first — it's the build spec (new backend tabs required, full visualization index, per-chart data/compute/caveat specs) for taking the dashboard from its current small set of charts to full coverage of the raw data. This is the standing convention for all future dashboard/HTML build work on this repo, not a one-off doc.
+
 ## What this repo is
 
-- `index.html` (originally `gm_action_plan_dashboard.html`) — the live dashboard. Single self-contained HTML file (Chart.js vendored inline in a `<script>` tag — not loaded from a CDN, see caveat below — vanilla JS, no build step, no framework, no npm). Reads data client-side directly from a Google Sheet via the `gviz` JSON endpoint — no backend, no API key, no server. Deploy as-is to Netlify (or any static host).
-  - **Chart.js is vendored, not CDN-loaded.** It originally loaded from `cdnjs.cloudflare.com`, which some corporate networks/ad-blockers block outright — that produced a `Chart is not defined` error even though the Sheet data loaded fine (KPI cards populated, charts didn't). Fixed by inlining Chart.js v4.4.4's UMD build directly into the `<head>` `<script>` tag, so the dashboard has zero external JS dependencies. If you ever need to bump the Chart.js version, re-vendor it the same way (pull `dist/chart.umd.js` from the npm tarball and paste it in) rather than reverting to a CDN `<script src>`.
+- `gm_action_plan_dashboard.html` — the live dashboard. Single self-contained HTML file (Chart.js from CDN, vanilla JS, no build step, no framework, no npm). Reads data client-side directly from a Google Sheet via the `gviz` JSON endpoint — no backend, no API key, no server. Deploy as-is to Netlify (or any static host): rename to `index.html` or point Netlify at it directly.
 - `gsheet_backend_build_20260821-0000.py` — the Python/pandas script that aggregated the raw booking-level export into the summary tables currently living in the Google Sheet. Re-run (or rewrite) this whenever the raw data needs refreshing at a different grain.
 
 ## Data source — Google Sheet (the actual backend)
