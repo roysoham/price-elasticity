@@ -101,6 +101,12 @@
     <div class="cards" id="kpiCards"></div>
     <div class="callout" id="crossCheck"></div>
     <div class="box">
+      <h3>Monthly Insights</h3>
+      <div class="note">Blended across top-tracked packages/cities (same scope as the KPI cards above), from <b>DoD_Summary</b>'s full daily range. Only reliable days (per <code>is_partial</code>/Settings.clean_window) count toward a month's totals — a month with no reliable days shows as such rather than a misleading small number.</div>
+      <div class="cards" id="monthlyCards"></div>
+      <ul id="monthlyHighlights" style="margin:12px 0 0;padding-left:20px;font-size:12.8px;color:var(--text);line-height:1.7;"></ul>
+    </div>
+    <div class="box">
       <h3>Daily trend — true day-on-day (CADENCE-01)</h3>
       <div class="note">GM%/bookings by <b>booking_date</b>, full pull range. Dashed segment = outside the clean window (partial/unreliable day) — see Settings.</div>
       <canvas id="chartDaily" style="max-height:280px"></canvas>
@@ -272,7 +278,7 @@
 
   <footer>
     Source: <a class="src" href="https://docs.google.com/spreadsheets/d/1lJfg79zQ1hQUKh_IHqkzzkTuUW9kdJGHfvg8bLcdTCk/edit" target="_blank">Redcliffe GM Action Plan — Live</a> ·
-    Data basis: Booking_Summary raw export (64,904 rows, Jun 2–Aug 21), clean window per Settings tab · See V5_Methodology.md and DASHBOARD_VISUALIZATION_SPEC.md for full caveats
+    Data basis: <span id="footerDataBasis">see Settings tab</span> · See V5_Methodology.md and DASHBOARD_VISUALIZATION_SPEC.md for full caveats
   </footer>
 </main>
 
@@ -396,11 +402,12 @@ function renderOverview(){
   },{plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}});
 
   drawDailyTrendChart();
+  renderMonthlyInsights();
   renderFinSection();
 }
 
-// CADENCE-01 — true day-on-day trend, DoD_Summary blended across all package/city buckets
-function drawDailyTrendChart(){
+// shared by CADENCE-01 and Monthly Insights -- DoD_Summary blended across all package/city buckets, one entry per booking_date
+function buildDailyMap(){
   const dod = DATA.DoD_Summary || [];
   const byDate = {};
   dod.forEach(r=>{
@@ -410,6 +417,12 @@ function drawDailyTrendChart(){
     byDate[d].gm += num(r.gm_sum);
     byDate[d].rev += num(r.revenue_sum);
   });
+  return byDate;
+}
+
+// CADENCE-01 — true day-on-day trend
+function drawDailyTrendChart(){
+  const byDate = buildDailyMap();
   const dates = Object.keys(byDate).sort();
   const gmPctByDay = dates.map(d=> byDate[d].rev ? (byDate[d].gm/byDate[d].rev*100) : null);
   drawChart('chartDaily','line',{
@@ -426,6 +439,85 @@ function drawDailyTrendChart(){
     }}}},
     scales:{ y:{ title:{display:true,text:'GM %'} }, x:{ ticks:{ maxTicksLimit:14 } } }
   });
+}
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// Monthly Insights — DoD_Summary rolled up to calendar month. Only non-partial days count
+// toward a month's totals (a month with zero reliable days shows as such, not as a tiny/
+// misleading number) -- June/July 2026 have real bookings in the raw data but they're
+// pre-clean-window ramp-up/incomplete-tracking days (see CLAUDE.md date-reliability caveat),
+// so they'd otherwise read as a 1000x+ "MoM growth" that's a data-collection artifact, not
+// real business trend.
+function renderMonthlyInsights(){
+  const byDate = buildDailyMap();
+  const dates = Object.keys(byDate).sort();
+  const byMonth = {};
+  dates.forEach(d=>{
+    const ym = d.slice(0,7); // YYYY-MM
+    if(!byMonth[ym]) byMonth[ym] = { reliableBookings:0, reliableGm:0, reliableRev:0, reliableDays:0, totalDays:0, dayVals:[] };
+    const m = byMonth[ym];
+    const b = byDate[d];
+    m.totalDays++;
+    if(!b.partial){
+      m.reliableBookings += b.bookings; m.reliableGm += b.gm; m.reliableRev += b.rev; m.reliableDays++;
+      m.dayVals.push({date:d, gmPct: b.rev? b.gm/b.rev*100 : null, bookings:b.bookings});
+    }
+  });
+  const months = Object.keys(byMonth).sort();
+
+  const cardsEl = document.getElementById('monthlyCards');
+  cardsEl.innerHTML = months.map((ym,i)=>{
+    const m = byMonth[ym];
+    const [y,mo] = ym.split('-');
+    const label = `${MONTH_NAMES[parseInt(mo,10)-1]} ${y}`;
+    const hasData = m.reliableDays > 0;
+    const gmPct = hasData && m.reliableRev ? m.reliableGm/m.reliableRev*100 : null;
+    const coverage = `${m.reliableDays} of ${m.totalDays} tracked day${m.totalDays===1?'':'s'} reliable`;
+
+    // MoM vs nearest prior month that itself has reliable data
+    let prevM = null;
+    for(let j=i-1;j>=0;j--){ if(byMonth[months[j]].reliableDays>0){ prevM = byMonth[months[j]]; break; } }
+    let deltaHtml = `<span class="delta flat">${coverage}</span>`;
+    if(hasData && prevM){
+      const prevGmPct = prevM.reliableRev? prevM.reliableGm/prevM.reliableRev*100 : null;
+      const d = prevM.reliableBookings ? ((m.reliableBookings-prevM.reliableBookings)/prevM.reliableBookings*100) : null;
+      if(d!==null){
+        const cls = d>0.3?'up':d<-0.3?'down':'flat';
+        const arrow = d>0.3?'▲':d<-0.3?'▼':'–';
+        deltaHtml = `<span class="delta ${cls}">${arrow} ${Math.abs(d).toFixed(1)}% bookings MoM</span><br><span class="delta flat">${coverage}</span>`;
+      }
+    }
+
+    return `<div class="card">
+      <div class="label">${label}</div>
+      <div class="value">${hasData ? m.reliableBookings.toLocaleString() : '—'}</div>
+      ${hasData ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px">₹${(m.reliableGm/100000).toFixed(1)}L GM · ${gmPct.toFixed(1)}% GM · ₹${(m.reliableRev/100000).toFixed(1)}L rev</div>` : `<div style="font-size:11.5px;color:var(--muted);margin-top:2px">no reliable days this month (pre-clean-window)</div>`}
+      ${deltaHtml}
+    </div>`;
+  }).join('');
+
+  // highlights
+  const highlights = [];
+  const reliableMonths = months.filter(ym=>byMonth[ym].reliableDays>0);
+  const latest = reliableMonths[reliableMonths.length-1];
+  if(latest){
+    const m = byMonth[latest];
+    const [y,mo] = latest.split('-');
+    const daysInCalMonth = new Date(parseInt(y,10), parseInt(mo,10), 0).getDate();
+    highlights.push(`${MONTH_NAMES[parseInt(mo,10)-1]} ${y} is month-to-date: ${m.reliableDays} of ${daysInCalMonth} calendar days captured so far, ${m.totalDays-m.reliableDays} more pulled but flagged partial/unreliable.`);
+    const sorted = [...m.dayVals].filter(d=>d.gmPct!==null).sort((a,b)=>a.gmPct-b.gmPct);
+    if(sorted.length>=2){
+      const worst = sorted[0], best = sorted[sorted.length-1];
+      highlights.push(`Within ${MONTH_NAMES[parseInt(mo,10)-1]}'s reliable days, GM% ranged from ${worst.gmPct.toFixed(1)}% (${worst.date}, ${worst.bookings.toLocaleString()} bookings) to ${best.gmPct.toFixed(1)}% (${best.date}) — investigate the low day if it's not already explained.`);
+    }
+  }
+  const unreliableMonths = months.filter(ym=>byMonth[ym].reliableDays===0);
+  if(unreliableMonths.length){
+    const labels = unreliableMonths.map(ym=>{ const [y,mo]=ym.split('-'); return `${MONTH_NAMES[parseInt(mo,10)-1]} ${y}`; });
+    highlights.push(`${labels.join(', ')} excluded from totals/trend — every tracked day in ${unreliableMonths.length>1?'these months':'this month'} falls outside the clean window (pre-ramp-up/incomplete tracking, not representative business volume). See Settings.clean_window.`);
+  }
+  document.getElementById('monthlyHighlights').innerHTML = highlights.map(h=>`<li>${h}</li>`).join('');
 }
 
 // FIN-01 — revenue-to-GM waterfall with WoW comparison (DASHBOARD_VISUALIZATION_SPEC.md FIN-01 addendum)
@@ -1019,6 +1111,13 @@ function drawRulesTable(){
 function renderSettings(){
   const rows = DATA.Settings || [];
   renderTable('settingsTable', ['key','value','notes'], rows);
+
+  const byKey = k => (rows.find(r=>r.key===k)||{}).value;
+  const baseFile = byKey('base_file_name'), lastRefreshed = byKey('last_refreshed'), cleanWindow = byKey('clean_window');
+  const footerEl = document.getElementById('footerDataBasis');
+  if(footerEl && baseFile){
+    footerEl.textContent = `${baseFile}${lastRefreshed?` · refreshed ${lastRefreshed}`:''}${cleanWindow?` · clean window ${cleanWindow}`:''}`;
+  }
 }
 
 // ---------- helpers ----------
