@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "filename": "online_discount_summary__raw_1-9Sep2026.xlsx",
+      "rows": 28818,
+      "collection_date_min": "2026-09-01",
+      "collection_date_max": "2026-09-09",
+      "collection_months": [
+        "2026-09"
+      ],
+      "booking_date_min": "2026-06-18",
+      "booking_date_max": "2026-09-09",
+      "booking_id_min": 17326941,
+      "booking_id_max": 18755747
+    },
+    {
+      "filename": "online_discount_summary__raw_Aug2026.xlsx",
+      "rows": 98439,
+      "collection_date_min": "2026-08-01",
+      "collection_date_max": "2026-08-31",
+      "collection_months": [
+        "2026-08"
+      ],
+      "booking_date_min": "2026-06-02",
+      "booking_date_max": "2026-08-31",
+      "booking_id_min": 17064012,
+      "booking_id_max": 18608784
+    },
+    {
+      "filename": "online_discount_summary__raw_July_2026.xlsx",
+      "rows": 92303,
+      "collection_date_min": "2026-07-01",
+      "collection_date_max": "2026-07-31",
+      "collection_months": [
+        "2026-07"
+      ],
+      "booking_date_min": "2026-05-09",
+      "booking_date_max": "2026-08-01",
+      "booking_id_min": 16706506,
+      "booking_id_max": 18089975
+    }
+  ]
+}
