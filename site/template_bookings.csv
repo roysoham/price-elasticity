@@ -1,0 +1,11 @@
+booking_date,market,sku,tier,channel,flag,coupon,offer_price,campaign_discount,member_discount,coupon_discount,wallet_credit,gift_card,net_revenue,cost
+2026-10-12,A,SKU-01,Standard,Self,Fresh,WELCOME15,14,0,0,2.1,0,0,11.9,2.5
+2026-10-12,B,SKU-04,Premium member,Self,Repeat,SAVER20,79,0,11.85,15.8,0,0,51.35,19.6
+2026-10-13,C,SKU-02,Member,Sales,Repeat,,23.28,0,2.33,0,0,0,20.95,5.2
+2026-10-13,A,SKU-06,Standard,Field collector,Fresh,SAVER15,12,0,0,1.8,0,0,10.2,2.2
+2026-10-14,D,SKU-09,Premium member,Self,Repeat,BUNDLE40,60.8,0,9.12,24.32,1.5,0,25.86,28.1
+2026-10-14,E,SKU-03,Member,Self,Repeat,SAVER22,26.68,0,2.67,5.87,0,0,18.14,6.4
+2026-10-15,F,SKU-07,Standard,Sales,Fresh,,14.4,0,0,0,0,0,14.4,2.6
+2026-10-15,B,SKU-05,Premium member,Self,Repeat,FAMILY3,22,0,3.3,3.74,1.1,0.9,12.96,4.9
+2026-10-16,A,SKU-10,Member,Self,Repeat,PARTNER20,38,0,3.8,7.6,0,0,26.6,8.7
+2026-10-16,C,SKU-14,Premium member,Field collector,Repeat,SAVER25,96.03,0,14.4,24,3.2,0,54.43,26.8

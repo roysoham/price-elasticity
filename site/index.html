@@ -1,0 +1,1623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Margin &amp; Pricing Command Center</title>
+<meta name="description" content="A margin-and-pricing analytics command center: discount-stack cost, price-elasticity break-even logic and an auto-ranked action list, built on a synthetic booking dataset.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Margin & Pricing Command Center">
+<meta property="og:description" content="Stacking 3+ discounts turns bookings margin-negative. See the cost of every discount layer, test price moves against a control market, and get a ranked action list — on a synthetic dataset.">
+<meta property="og:image" content="preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Margin & Pricing Command Center">
+<meta name="twitter:description" content="Discount-stack cost, price-elasticity break-even logic and an auto-ranked action list — on a synthetic dataset.">
+<meta name="twitter:image" content="preview.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%230f172a'/%3E%3Ctext x='50' y='68' font-size='58' font-family='Georgia,serif' fill='%23d4a537' text-anchor='middle'%3E%24%3C/text%3E%3C/svg%3E">
+<script src="vendor/chart.umd.js"></script>
+<style>
+:root{
+  --navy-900:#0f172a; --navy-800:#1e293b; --navy-700:#334155; --navy-50:#f8fafc;
+  --ink:#0f172a; --ink-soft:#475569; --line:#e2e8f0;
+  --gold:#b45309; --gold-ink:#7c3609; --gold-soft:#fef3e2;
+  --good:#15803d; --bad:#b91c1c; --warn:#b45309; --neutral:#475569;
+  --card:#ffffff; --bg:#f1f5f9;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 1px 1px rgba(15,23,42,.04);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--gold-ink)}
+h1,h2,h3,h4{margin:0 0 .4em;line-height:1.25}
+h1{font-size:1.5rem} h2{font-size:1.15rem} h3{font-size:1rem} h4{font-size:.9rem}
+p{margin:.3em 0}
+button{font:inherit;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{text-align:left;padding:.45em .6em;border-bottom:1px solid var(--line)}
+th{color:var(--ink-soft);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+tbody tr:hover{background:#fafbfc}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+
+/* header */
+header.top{background:var(--navy-900);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+header.top .brand{display:flex;align-items:center;gap:10px}
+header.top .brand .mark{width:30px;height:30px;border-radius:7px;background:var(--gold);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:Georgia,serif}
+header.top .brand h1{font-size:1.05rem;margin:0;color:#fff}
+header.top .brand .tag{font-size:.72rem;color:#cbd5e1;margin-top:1px}
+header.top .controls{display:flex;align-items:center;gap:14px;font-size:.82rem;color:#e2e8f0}
+header.top select, header.top .fx-toggle button{background:var(--navy-800);color:#fff;border:1px solid var(--navy-700);border-radius:6px;padding:5px 8px;font-size:.82rem}
+.fx-toggle{display:flex;gap:0;border:1px solid var(--navy-700);border-radius:6px;overflow:hidden}
+.fx-toggle button{border:none;border-radius:0;padding:5px 10px}
+.fx-toggle button[aria-pressed="true"]{background:var(--gold);color:#fff}
+.data-note{font-size:.72rem;color:#94a3b8;max-width:360px}
+
+/* filter bar */
+.filterbar{background:var(--navy-800);color:#e2e8f0;padding:8px 20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.82rem}
+.filterbar label{display:flex;align-items:center;gap:5px;color:#cbd5e1}
+.filterbar select,.filterbar input[type=date]{background:#fff;color:var(--ink);border:1px solid var(--navy-700);border-radius:6px;padding:4px 7px;font-size:.82rem}
+.filterbar .reset{background:transparent;border:1px solid var(--navy-700);color:#cbd5e1;border-radius:6px;padding:4px 10px}
+.filterbar .reset:hover{color:#fff;border-color:#fff}
+
+/* tabs */
+nav.tabbar{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+nav.tabbar .tabs{display:inline-flex;min-width:100%}
+@media (max-width:700px){ nav.tabbar{ box-shadow: inset -16px 0 10px -10px rgba(15,23,42,.18); } }
+nav.tabbar button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 16px;font-size:.88rem;color:var(--ink-soft);white-space:nowrap;flex:0 0 auto}
+nav.tabbar button[aria-selected="true"]{color:var(--navy-900);border-bottom-color:var(--gold);font-weight:600}
+nav.tabbar button:hover{color:var(--navy-900)}
+
+main{max-width:1240px;margin:0 auto;padding:18px 16px 40px}
+.panel{display:none}
+.panel.active{display:block}
+
+/* generic layout helpers */
+.grid{display:grid;gap:14px}
+.grid.cols-2{grid-template-columns:1fr 1fr}
+.grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+.grid.cols-4{grid-template-columns:1fr 1fr 1fr 1fr}
+@media (max-width:900px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr}}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.card h3{display:flex;align-items:center;gap:8px}
+.caption{font-size:.78rem;color:var(--ink-soft);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+.caption b{color:var(--ink)}
+.chart-wrap{position:relative;height:280px}
+.chart-wrap.tall{height:360px}
+.n-tag{font-size:.7rem;color:var(--ink-soft);font-weight:400}
+.insufficient{color:#94a3b8;font-style:italic;font-size:.82rem}
+
+/* hero */
+.hero{background:linear-gradient(135deg,var(--navy-900),var(--navy-800));color:#fff;border-radius:var(--radius);padding:24px;margin-bottom:16px}
+.hero .sowhat{font-size:1.3rem;font-weight:600;max-width:800px;line-height:1.35}
+.hero .case{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:16px}
+@media (max-width:900px){.hero .case{grid-template-columns:1fr}}
+.hero .case .step{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;font-size:.82rem}
+.hero .case .step b{display:block;color:var(--gold);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.hero .cta{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:10px 16px;font-size:.88rem;font-weight:600;text-decoration:none;border:1px solid transparent}
+.btn.primary{background:var(--gold);color:#fff}
+.btn.primary:hover{background:var(--gold-ink)}
+.btn.secondary{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.3)}
+.btn.secondary:hover{background:rgba(255,255,255,.16)}
+.btn.ghost{background:transparent;color:var(--navy-900);border-color:var(--line)}
+.btn.ghost:hover{background:var(--navy-50)}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media (max-width:900px){.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+.kpi .label{font-size:.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+.kpi .value{font-size:1.5rem;font-weight:700;margin:4px 0 2px}
+.kpi .delta{font-size:.78rem;display:flex;align-items:center;gap:4px}
+.delta.good{color:var(--good)} .delta.bad{color:var(--bad)} .delta.flat{color:var(--ink-soft)}
+
+/* value at stake */
+.vas-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+@media (max-width:900px){.vas-strip{grid-template-columns:1fr}}
+.vas{background:var(--gold-soft);border:1px solid #f3dcae;border-radius:var(--radius);padding:14px}
+.vas .label{font-size:.75rem;color:var(--gold-ink);font-weight:600}
+.vas .value{font-size:1.3rem;font-weight:700;color:var(--ink);margin:3px 0}
+.vas .assume{font-size:.72rem;color:var(--ink-soft)}
+
+/* chips / badges */
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:.72rem;font-weight:600}
+.chip.low{background:#dcfce7;color:#166534}
+.chip.medium{background:#fef3c7;color:#92400e}
+.chip.high{background:#fee2e2;color:#991b1b}
+.chip.tierA{background:#dcfce7;color:#166534}
+.chip.tierB{background:#fef3c7;color:#92400e}
+.chip.tierC{background:#f1f5f9;color:#475569}
+.chip.status-uploaded{background:#dcfce7;color:#166534}
+.chip.status-recommended{background:#dbeafe;color:#1e40af}
+.chip.status-notuploaded{background:#f1f5f9;color:#475569}
+.chip.confound{background:#fee2e2;color:#991b1b}
+
+/* simulator */
+.sim{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:900px){.sim{grid-template-columns:1fr}}
+.sim .controls label{display:block;font-size:.82rem;margin:10px 0 4px;color:var(--ink-soft)}
+.sim .controls input[type=range]{width:100%}
+.sim .controls .row{display:flex;justify-content:space-between;font-size:.82rem}
+.sim .outputs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sim .outputs .box{background:var(--navy-50);border:1px solid var(--line);border-radius:8px;padding:10px}
+.sim .outputs .box .label{font-size:.72rem;color:var(--ink-soft)}
+.sim .outputs .box .value{font-size:1.15rem;font-weight:700}
+
+/* footer */
+footer.site{background:var(--navy-900);color:#e2e8f0;margin-top:30px;padding:28px 20px}
+footer.site .wrap{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:1.1fr 1fr;gap:28px}
+@media (max-width:900px){footer.site .wrap{grid-template-columns:1fr}}
+footer.site h4{color:#fff}
+footer.site .card-dark{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius);padding:16px}
+footer.site .card-dark p{color:#cbd5e1;font-size:.86rem}
+footer.site a{color:var(--gold)}
+footer.site .contact{margin-top:10px;font-size:.86rem;color:#f1f5f9}
+footer.site .fineprint{margin-top:18px;font-size:.72rem;color:#94a3b8;max-width:900px}
+
+/* BYOD dropzone */
+.dropzone{border:2px dashed var(--line);border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft);cursor:pointer;background:#fff}
+.dropzone.dragover{border-color:var(--gold);background:var(--gold-soft)}
+.dropzone input{display:none}
+
+/* modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-backdrop.open{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:22px}
+.modal .close{float:right;background:none;border:none;font-size:1.2rem;color:var(--ink-soft)}
+
+.table-wrap{overflow-x:auto}
+.sortable th{cursor:pointer;user-select:none}
+.sortable th:hover{color:var(--ink)}
+.reconcile-ok{color:var(--good);font-weight:600;font-size:.78rem}
+.reconcile-bad{color:var(--bad);font-weight:600;font-size:.78rem}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">$</div>
+    <div>
+      <h1>Margin &amp; Pricing Command Center</h1>
+      <div class="tag" id="dataBasisTag">Sample dataset — loading…</div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="fx-toggle" role="group" aria-label="Currency">
+      <button id="fxUSD" aria-pressed="true">USD</button>
+      <button id="fxAED" aria-pressed="false">AED</button>
+    </div>
+    <div class="data-note" id="dataNote"></div>
+  </div>
+</header>
+
+<div class="filterbar" id="filterBar">
+  <label>Market <select id="f-market"><option value="">All</option></select></label>
+  <label>Tier <select id="f-tier"><option value="">All</option></select></label>
+  <label>Channel <select id="f-channel"><option value="">All</option></select></label>
+  <label>From <select id="f-from"></select></label>
+  <label>To <select id="f-to"></select></label>
+  <button class="reset" id="f-reset" type="button">Reset filters</button>
+</div>
+
+<nav class="tabbar" role="tablist" aria-label="Sections">
+  <div class="tabs">
+    <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true">Overview</button>
+    <button role="tab" id="tab-leakage" aria-controls="panel-leakage" aria-selected="false">Discount leakage</button>
+    <button role="tab" id="tab-pricing" aria-controls="panel-pricing" aria-selected="false">Pricing moves</button>
+    <button role="tab" id="tab-segments" aria-controls="panel-segments" aria-selected="false">Segments and channels</button>
+    <button role="tab" id="tab-methodology" aria-controls="panel-methodology" aria-selected="false">Methodology</button>
+  </div>
+</nav>
+
+<main>
+  <section id="panel-overview" class="panel active" role="tabpanel" aria-labelledby="tab-overview">
+
+    <div class="hero">
+      <div class="sowhat" id="heroSoWhat">Loading…</div>
+      <div class="case">
+        <div class="step"><b>Problem</b>Discounts stack, and the margin cost of the second and third layer is rarely measured.</div>
+        <div class="step"><b>Method</b>Weekly bookings aggregated by discount stack, coupon, market and tier; price moves tested against a control market; every percentage shows its sample size.</div>
+        <div class="step"><b>Use</b>Cap or retire the layers that cost margin without buying volume, price where demand is inelastic, and rank the actions by impact and confidence.</div>
+      </div>
+      <div class="cta">
+        <a class="btn primary" href="mailto:p10sohamr@iimidr.ac.in?subject=Margin%20review">Book a 30-minute margin review</a>
+        <button class="btn secondary" type="button" id="heroUseDataBtn">Use your data</button>
+      </div>
+    </div>
+
+    <div class="kpi-strip" id="kpiStrip" aria-label="Key metrics, last complete week"></div>
+
+    <div class="vas-strip" id="vasStrip" aria-label="Value at stake"></div>
+
+    <div class="grid cols-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>GM% trend <span class="n-tag">complete weeks only</span></h3>
+        <div class="chart-wrap"><canvas id="ovTrendChart"></canvas></div>
+        <div class="caption" id="ovTrendCaption"></div>
+      </div>
+      <div class="card">
+        <h3>Discount waterfall
+          <select id="ovWeekPicker" style="margin-left:auto;font-size:.78rem"></select>
+        </h3>
+        <div class="chart-wrap"><canvas id="ovWaterfallChart"></canvas></div>
+        <div id="ovReconcile" style="margin-top:4px"></div>
+        <div class="table-wrap"><table id="ovWaterfallTable"><thead><tr><th>Step</th><th>Amount</th><th>% of offer</th><th>WoW</th></tr></thead><tbody></tbody></table></div>
+        <div class="caption">8-week GM% strip</div>
+        <div class="chart-wrap" style="height:60px"><canvas id="ovSparkline"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Top actions</h3>
+      <div class="table-wrap">
+        <table id="ovActionTeaser"><thead><tr><th>Action</th><th>Expected annual GM impact</th><th>Confidence</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <h3>Where this applies</h3>
+    <div class="grid cols-4" style="margin-bottom:14px">
+      <div class="card"><h4>Payer-led price pressure</h4><p style="font-size:.85rem;color:var(--ink-soft)">Margin per booking, tracked at SKU × market grain, as reimbursement-linked pricing tightens.</p></div>
+      <div class="card"><h4>Preventive-health packages</h4><p style="font-size:.85rem;color:var(--ink-soft)">Discount discipline on bundled wellness packages, where stacking is easiest to miss.</p></div>
+      <div class="card"><h4>Membership &amp; wellness plans</h4><p style="font-size:.85rem;color:var(--ink-soft)">Repeat-customer economics — fresh vs. repeat GM, by tier — for subscription-style plans.</p></div>
+      <div class="card"><h4>Multi-city / multi-country expansion</h4><p style="font-size:.85rem;color:var(--ink-soft)">Market-tier pricing read side-by-side, before rolling a price index into a new geography.</p></div>
+    </div>
+
+    <div class="card">
+      <h3>30-day Margin Leak Audit</h3>
+      <p style="font-size:.85rem;color:var(--ink-soft)">What I'd need: 8–12 weeks of booking-level export (price, discounts by type, cost, market/channel). What you get: a discount-stack cost read, a price-elasticity read on your last price moves, and a ranked action list like this one — built on your numbers. Timeline: 30 days from data in hand.</p>
+      <a class="btn ghost" href="mailto:p10sohamr@iimidr.ac.in?subject=30-day%20Margin%20Leak%20Audit">Ask about the audit</a>
+    </div>
+
+  </section>
+  <section id="panel-leakage" class="panel" role="tabpanel" aria-labelledby="tab-leakage" hidden>
+
+    <div class="grid cols-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Stack cost: GM% by discount-type count</h3>
+        <div class="chart-wrap"><canvas id="lkStackChart"></canvas></div>
+        <div class="table-wrap"><table id="lkStackTable"><thead><tr><th>Discount types</th><th>Share of bookings</th><th>GM%</th><th>n</th></tr></thead><tbody></tbody></table></div>
+        <div class="caption" id="lkStackCaption"></div>
+      </div>
+      <div class="card">
+        <h3>Coupon depth vs. GM%</h3>
+        <div class="chart-wrap"><canvas id="lkBubbleChart"></canvas></div>
+        <div class="caption">Bubble size = bookings. Only coupons with n ≥ 100 shown. <b>So what:</b> GM% falls as discount depth rises — deeper coupons are not basket-builders on a margin basis.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Coupon risk flag</h3>
+      <div class="table-wrap">
+        <table id="lkRiskTable" class="sortable"><thead><tr><th>Coupon</th><th>Share 3+ stacked</th><th>Share GM-negative</th><th>Exposure score</th><th>Band</th><th>n</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="caption">Exposure = 0.5 × share of bookings at 3+ discount types + 0.5 × share of GM-negative bookings. Bands: Low &lt; 0.10, Medium 0.10–0.25, High &gt; 0.25.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Discount-stack simulator</h3>
+      <div class="sim">
+        <div class="controls">
+          <label><input type="radio" name="capType" value="n" checked> Cap on number of discount types</label>
+          <label><input type="radio" name="capType" value="pct"> Cap on total discount % of offer</label>
+          <div id="simCapNWrap">
+            <label>Max discount types allowed: <b id="simCapNVal">2</b></label>
+            <input type="range" id="simCapN" min="1" max="3" value="2" step="1">
+          </div>
+          <div id="simCapPctWrap" style="display:none">
+            <label>Max total discount %: <b id="simCapPctVal">25</b>%</label>
+            <input type="range" id="simCapPct" min="10" max="40" value="25" step="1">
+          </div>
+          <label>Assumed volume-loss rate on affected bookings: <b id="simLossVal">15</b>%</label>
+          <input type="range" id="simLoss" min="0" max="40" value="15" step="1">
+        </div>
+        <div class="outputs" id="simOutputs"></div>
+      </div>
+      <div class="caption">Computed from booking counts and average per-booking discount/GM in the filtered range. Never shown without the loss side — see Methodology for the bucket-level approximation used.</div>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Over-stack tail</h3>
+        <div class="table-wrap"><table id="lkTailTable"><thead><tr><th>Coupon</th><th>Bookings</th><th>Share GM-negative</th><th>GM lost</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3>GM trend with promotions &amp; policy changes</h3>
+        <div class="chart-wrap"><canvas id="lkTimelineChart"></canvas></div>
+        <div class="caption">Triangle markers = events from the promotions log; hover for detail.</div>
+      </div>
+    </div>
+
+  </section>
+  <section id="panel-pricing" class="panel" role="tabpanel" aria-labelledby="tab-pricing" hidden>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Price change log</h3>
+      <div class="table-wrap">
+        <table id="pmLogTable"><thead><tr><th>Event</th><th>SKU</th><th>Market</th><th>Old price</th><th>New price</th><th>Difference</th><th>% change</th><th>Status</th><th>Change date</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Before/after tracker — executed price events</h3>
+      <p style="font-size:.82rem;color:var(--ink-soft)">4 weeks pre vs. 4 weeks post (change week excluded), treated market vs. control market. Difference-in-differences on log weekly bookings; 90% interval shown.</p>
+      <div class="table-wrap">
+        <table id="pmTrackerTable">
+          <thead><tr><th>Event</th><th>SKU / Market</th><th>Control</th><th>ASP pre→post</th><th>Volume pre→post</th><th>GM pre→post</th>
+          <th>Elasticity (90% CI)</th><th>Break-even</th><th>Pre-trend</th><th>Flags</th><th>Confidence</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="caption" id="pmTrackerCaption"></div>
+    </div>
+
+    <div class="card">
+      <h3>Auto-ranked action list</h3>
+      <div class="table-wrap">
+        <table id="pmActionTable"><thead><tr><th>Action</th><th>Expected annual GM impact</th><th>Confidence</th><th>Owner</th><th>First step</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="caption">Sorted by expected impact × confidence weight (A = 1.0, B = 0.6, C = 0.3).</div>
+    </div>
+
+  </section>
+  <section id="panel-segments" class="panel" role="tabpanel" aria-labelledby="tab-segments" hidden>
+
+    <h3>Fresh vs. Repeat</h3>
+    <div class="grid cols-3" style="margin-bottom:14px">
+      <div class="card"><h4>GM%</h4><div class="chart-wrap"><canvas id="sgFrGmChart"></canvas></div><div class="caption" id="sgFrGmCaption"></div></div>
+      <div class="card"><h4>ASP</h4><div class="chart-wrap"><canvas id="sgFrAspChart"></canvas></div><div class="caption" id="sgFrAspCaption"></div></div>
+      <div class="card"><h4>Bookings</h4><div class="chart-wrap"><canvas id="sgFrBkChart"></canvas></div><div class="caption" id="sgFrBkCaption"></div></div>
+    </div>
+
+    <div class="grid cols-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Tier comparison <span class="n-tag">selected range</span></h3>
+        <div class="table-wrap"><table id="sgTierTable"><thead><tr><th>Tier</th><th>GM%</th><th>ASP</th><th>Bookings</th><th>n</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3>Premium member — Fresh share &amp; volume</h3>
+        <div class="chart-wrap"><canvas id="sgPremiumChart"></canvas></div>
+        <div class="caption" id="sgPremiumCaption"></div>
+      </div>
+    </div>
+
+    <div class="grid cols-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Channel split trend <span class="n-tag">stacked bookings + blended GM%</span></h3>
+        <div class="chart-wrap"><canvas id="sgChannelTrendChart"></canvas></div>
+        <div class="caption" id="sgChannelTrendCaption"></div>
+      </div>
+      <div class="card">
+        <h3>Channel comparison <span class="n-tag">selected range</span></h3>
+        <div class="chart-wrap"><canvas id="sgChannelBarChart"></canvas></div>
+        <div class="caption" id="sgChannelBarCaption"></div>
+      </div>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Market ranking</h3>
+        <div class="table-wrap">
+          <table id="sgMarketTable" class="sortable"><thead><tr><th data-k="market">Market</th><th data-k="gm_pct">GM%</th><th data-k="asp">ASP</th><th data-k="bookings">Bookings</th><th data-k="priceIndex">Price index</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Tier × market
+          <select id="sgMatrixMetric" style="margin-left:auto;font-size:.78rem"><option value="gm_pct">GM%</option><option value="asp">ASP</option></select>
+        </h3>
+        <div class="table-wrap"><table id="sgMatrixTable"></table></div>
+      </div>
+    </div>
+
+  </section>
+  <section id="panel-methodology" class="panel" role="tabpanel" aria-labelledby="tab-methodology" hidden>
+
+    <div class="grid cols-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Definitions</h3>
+        <dl style="font-size:.85rem;color:var(--ink-soft)">
+          <dt><b>GM</b></dt><dd>Collected net revenue minus cost per test. No customer-paid fee is treated as a company cost.</dd>
+          <dt><b>Discount type</b></dt><dd>One of: campaign discount, member discount, coupon discount, wallet credit, gift card. A booking can carry several at once.</dd>
+          <dt><b>Stacked</b></dt><dd>The count of distinct discount types with a nonzero amount on one booking (0, 1, 2, or 3+).</dd>
+          <dt><b>Partial week</b></dt><dd>The most recent week, still accumulating bookings — excluded from every KPI, trend and week-over-week read.</dd>
+          <dt><b>Filter bar</b></dt><dd>Market, tier, channel and date-range selections apply to every chart and table that carries those dimensions; it does not retroactively change which weeks count as complete.</dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h3>Assumptions <span class="n-tag">editable</span></h3>
+        <div style="font-size:.85rem">
+          <label>FX, 1 USD = <input type="number" id="asmFx" step="0.0001" style="width:90px"> AED</label><br><br>
+          <label>Minimum n for a reported percentage: <input type="number" id="asmMinN" step="10" style="width:70px"></label>
+          <p class="n-tag" style="margin-top:10px">Other constants, defined in code and used consistently: simulator default volume-loss rate 15% (range 0–40%); coupon-risk bands Low&lt;0.10 / Medium 0.10–0.25 / High&gt;0.25; confidence tiers A/B/C per the rules in Pricing moves; break-even elasticity uses a 20% safety margin, direction-aware (see below).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Break-even elasticity logic</h3>
+      <p style="font-size:.85rem;color:var(--ink-soft)">
+        Break-even elasticity = ln((old price − cost)/(new price − cost)) ÷ ln(new price/old price) — the elasticity at which gross margin is unchanged by the move.
+        A 20% safety margin is applied toward the conservative side: for a price <i>increase</i>, the move is judged to "clear" only if the estimated elasticity is less negative than break-even + 20% of its magnitude;
+        for a <i>decrease</i>, only if it is more negative than break-even − 20% of its magnitude. This is a locally-linearised estimate, not a full demand-curve fit.
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>How this synthetic dataset was built</h3>
+      <p style="font-size:.85rem;color:var(--ink-soft)" id="methDatasetIntro"></p>
+      <ul style="font-size:.85rem;color:var(--ink-soft)">
+        <li><b>Stacking gradient</b> — GM% steps down roughly 9 / 4 / 4 points as discount-type count rises from 0 to 1 to 2 to 3+, each bucket with n in the thousands.</li>
+        <li><b>Over-stack tail</b> — one coupon (see Discount leakage → Over-stack tail) launches mid-period with a large share of its own bookings GM-negative: small in total dollars, concentrated in one place — the defensible "cap this" story.</li>
+        <li><b>A policy change</b> — a discount type is switched off partway through the period (see the promotions timeline).</li>
+        <li><b>Eight executed price events</b>, two deliberately confounded by a market-level coupon push that lands in the same window — the before/after tracker is built to flag exactly those two, not just report an average.</li>
+      </ul>
+      <p style="font-size:.85rem;color:var(--ink-soft)"><b>State plainly:</b> every finding on this page is a property of this simulated dataset, demonstrating the method — not a result achieved for any client or employer.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Limitations</h3>
+      <ul style="font-size:.85rem;color:var(--ink-soft)">
+        <li>All tables are weekly aggregates; no booking-level drill-down is published here.</li>
+        <li>Elasticity estimates are noisy at low weekly volume — the 90% interval widens accordingly, and tiering is rule-based, not a formal power calculation.</li>
+        <li>Control-market validity assumes no unobserved market-specific shock besides what's in the promotions log — the confound check only catches what that log records plus a coupon-share heuristic.</li>
+        <li>No payer, insurance or claims data is modelled.</li>
+      </ul>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Data provenance</h3>
+        <p style="font-size:.85rem;color:var(--ink-soft)" id="methProvenance"></p>
+      </div>
+      <div class="card">
+        <h3>Bring your own data</h3>
+        <p style="font-size:.85rem;color:var(--ink-soft)">Column dictionary and a 10-row example: <a href="template_bookings.csv" download>template_bookings.csv</a>.</p>
+        <button class="btn ghost" type="button" id="methByodBtn">Use your data</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Changelog</h3>
+      <p style="font-size:.85rem;color:var(--ink-soft)" id="methChangelog"></p>
+    </div>
+
+  </section>
+</main>
+
+<div class="modal-backdrop" id="byodModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="byodTitle">
+    <button class="close" id="byodClose" aria-label="Close">&times;</button>
+    <h3 id="byodTitle">Use your data</h3>
+    <p style="font-size:.85rem;color:var(--ink-soft)">Drop a booking-level CSV below. It's parsed in your browser only — <b>nothing is uploaded, nothing leaves your browser.</b>
+      Need the format? <a href="template_bookings.csv" download>download the template</a> (10 example rows, column dictionary below).</p>
+    <div class="dropzone" id="byodDropzone" tabindex="0" role="button" aria-label="Drop a CSV file or click to choose one">
+      <div id="byodDzText">Drag a CSV here, or click to choose a file</div>
+      <input type="file" id="byodFileInput" accept=".csv">
+    </div>
+    <p class="n-tag">Columns expected: booking_date, market, sku, tier, channel, flag, coupon, offer_price, campaign_discount, member_discount, coupon_discount, wallet_credit, gift_card, net_revenue, cost</p>
+    <div id="byodResult"></div>
+  </div>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="card-dark">
+      <h4>Want this on your own margin data?</h4>
+      <p>Bring a booking file and see your own discount-stack cost, price-move impact and action list in a minute. Nothing leaves your browser.</p>
+      <button class="btn primary" id="byodOpenBtn" type="button">Use your data</button>
+      <div class="contact">
+        <strong>Soham Roy</strong> · +971 56 645 0548 ·
+        <a href="mailto:p10sohamr@iimidr.ac.in">p10sohamr@iimidr.ac.in</a> ·
+        <a href="https://linkedin.com/in/roysoham" target="_blank" rel="noopener">linkedin.com/in/roysoham</a>
+      </div>
+    </div>
+    <div class="card-dark">
+      <h4>About the author</h4>
+      <p>Growth leader with 16+ years across D2C, OTT, e-commerce and diagnostics, who builds and ships the analytics he uses.</p>
+    </div>
+  </div>
+  <div class="fineprint" id="dataFinePrint">
+    Synthetic data, relationships calibrated to a real diagnostics book; company, sources and currency masked. Currency shown at 1 USD = 3.6725 AED (indicative, 28 Oct 2026; editable in Assumptions).
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   Margin & Pricing Command Center — core
+   Static site. Data loaded from ./data/*.csv + meta.json only.
+   No network calls beyond same-origin fetches of those files.
+   ============================================================ */
+"use strict";
+
+/* ---------- tiny CSV parser (no deps) ---------- */
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQuotes){
+      if (c === '"'){
+        if (text[i+1] === '"'){ field += '"'; i++; } else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ','){ row.push(field); field=""; }
+      else if (c === '\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if (c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length){ row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const header = rows[0];
+  const out = [];
+  for (let r = 1; r < rows.length; r++){
+    if (rows[r].length === 1 && rows[r][0] === "") continue;
+    const obj = {};
+    for (let c = 0; c < header.length; c++){
+      const raw = rows[r][c];
+      obj[header[c]] = raw === undefined ? "" : raw;
+    }
+    out.push(obj);
+  }
+  return out;
+}
+function numCols(arr, cols){
+  for (const o of arr) for (const c of cols) if (o[c] !== undefined) o[c] = o[c] === "" ? 0 : +o[c];
+  return arr;
+}
+function boolCol(arr, col){
+  for (const o of arr) o[col] = (o[col] === "True" || o[col] === "true" || o[col] === true);
+  return arr;
+}
+
+/* ---------- app state ---------- */
+const STATE = {
+  meta: null, truthForbidden: true,
+  data: {}, // weekly_market_sku, weekly_stack, weekly_coupon, weekly_segment, weekly_waterfall, price_changes, promo_events
+  filters: { market:"", tier:"", channel:"", from:"", to:"" },
+  currency: "USD",
+  byod: null, // { bookings:[...] } when active
+  charts: {} // id -> Chart.js instance, for resize-on-visible
+};
+const MONEY_COLS_SUFFIX = ["offer","campaign","member","coupon_d","wallet","gift","net","cost","gm"];
+
+/* ---------- formatting ---------- */
+function fmtMoney(usd){
+  const v = STATE.currency === "AED" ? usd * (STATE.meta?.fx?.AED || 3.6725) : usd;
+  const sym = STATE.currency === "AED" ? "AED " : "$";
+  const neg = v < 0;
+  const abs = Math.abs(v);
+  let s;
+  if (abs >= 1e6) s = (abs/1e6).toFixed(2) + "M";
+  else if (abs >= 1e3) s = (abs/1e3).toFixed(1) + "K";
+  else s = abs.toFixed(0);
+  return (neg ? "-" : "") + sym + s;
+}
+function fmtMoneyFull(usd){
+  const v = STATE.currency === "AED" ? usd * (STATE.meta?.fx?.AED || 3.6725) : usd;
+  const sym = STATE.currency === "AED" ? "AED " : "$";
+  const neg = v < 0;
+  return (neg?"-":"") + sym + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+}
+function fmtPct(p, digits){ return (p==null || isNaN(p)) ? "—" : p.toFixed(digits==null?1:digits) + "%"; }
+function fmtInt(n){ return (n==null||isNaN(n)) ? "—" : Math.round(n).toLocaleString(); }
+
+/* n-suppression: G2 */
+const MIN_N = () => (STATE.meta?.min_n_for_percentages || 100);
+function pctOrSuppressed(n, pctText){
+  if (n < MIN_N()) return `<span class="insufficient">n=${n}, insufficient data</span>`;
+  return pctText;
+}
+
+/* delta chip: G4 — colour respects direction. goodIfUp=true means rising value is good. */
+function deltaChip(curr, prev, goodIfUp, digits, isPct){
+  if (prev == null || prev === 0 || curr == null) return `<span class="delta flat">—</span>`;
+  const diff = curr - prev;
+  const pct = (diff/Math.abs(prev))*100;
+  const rising = diff > 0;
+  const good = rising === goodIfUp;
+  const flatness = isPct ? Math.abs(diff) < 0.05 : Math.abs(pct) < 0.05;
+  const cls = flatness ? "flat" : (good ? "good" : "bad");
+  const arrow = flatness ? "▬" : (rising ? "▲" : "▼");
+  const txt = isPct ? `${Math.abs(diff).toFixed(digits==null?1:digits)}pp` : `${Math.abs(pct).toFixed(1)}%`;
+  return `<span class="delta ${cls}">${arrow} ${txt} vs prior wk</span>`;
+}
+
+/* ---------- week helpers (G3: partial week never in KPI/trend/WoW) ---------- */
+function completeWeeks(rows){
+  return rows.filter(r => r.is_partial === false);
+}
+function weekList(rows){
+  return Array.from(new Set(rows.map(r=>r.week_start))).sort();
+}
+function lastCompleteWeek(){ return STATE.meta.last_complete_week; }
+function prevWeek(weeks, w){
+  const i = weeks.indexOf(w);
+  return i > 0 ? weeks[i-1] : null;
+}
+
+/* ---------- filter application ---------- */
+function inFilter(row){
+  const f = STATE.filters;
+  if (f.market && row.market && row.market !== f.market) return false;
+  if (f.tier && row.tier && row.tier !== f.tier) return false;
+  if (f.channel && row.channel && row.channel !== f.channel) return false;
+  if (f.from && row.week_start && row.week_start < f.from) return false;
+  if (f.to && row.week_start && row.week_start > f.to) return false;
+  return true;
+}
+function filtered(key){
+  return STATE.data[key].filter(inFilter);
+}
+
+/* ---------- aggregation helper ---------- */
+const AGG_COLS = ["bookings","offer","campaign","member","coupon_d","wallet","gift","net","cost","gm"];
+function sumRows(rows){
+  const o = {bookings:0,offer:0,campaign:0,member:0,coupon_d:0,wallet:0,gift:0,net:0,cost:0,gm:0};
+  for (const r of rows) for (const c of AGG_COLS) o[c] += (r[c]||0);
+  o.gm_pct = o.net > 0 ? (o.gm/o.net)*100 : null;
+  return o;
+}
+function groupSum(rows, keyFn){
+  const m = new Map();
+  for (const r of rows){
+    const k = keyFn(r);
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(r);
+  }
+  const out = new Map();
+  for (const [k, rs] of m) out.set(k, sumRows(rs));
+  return out;
+}
+/* GM on the negative-GM subset of a coupon-week isn't published separately from the
+   coupon's blended total, so it can't be read off directly. Floor estimate, documented
+   in Methodology: assume those bookings collect ~$0 net revenue, so the loss ~= their
+   share of this row's cost base. This will understate loss for a cheap SKU and overstate
+   it for an expensive one; it's a stated approximation, not a precise figure. */
+function estGmLostOnNegative(row){
+  if (!row.bookings || !row.bookings_negative_gm) return 0;
+  const avgCostPerBooking = row.cost / row.bookings;
+  return -avgCostPerBooking * row.bookings_negative_gm;
+}
+
+/* ---------- tabs ---------- */
+const TAB_IDS = ["overview","leakage","pricing","segments","methodology"];
+function selectTab(id){
+  for (const t of TAB_IDS){
+    const btn = document.getElementById("tab-"+t);
+    const panel = document.getElementById("panel-"+t);
+    const active = t === id;
+    btn.setAttribute("aria-selected", active ? "true":"false");
+    if (active){ panel.hidden = false; panel.classList.add("active"); }
+    else { panel.hidden = true; panel.classList.remove("active"); }
+  }
+  // resize only charts on the panel that just became visible (CLAUDE.md gotcha)
+  const panel = document.getElementById("panel-"+id);
+  panel.querySelectorAll("canvas").forEach(cv=>{
+    const inst = STATE.charts[cv.id];
+    if (inst) inst.resize();
+  });
+}
+TAB_IDS.forEach(t=>{
+  document.getElementById("tab-"+t).addEventListener("click", ()=>selectTab(t));
+});
+
+/* ---------- filter bar wiring ---------- */
+function populateFilterOptions(){
+  const sku = STATE.data.weekly_market_sku;
+  const seg = STATE.data.weekly_segment;
+  const markets = Array.from(new Set(sku.map(r=>r.market))).sort();
+  const tiers = Array.from(new Set(seg.map(r=>r.tier)));
+  const channels = Array.from(new Set(seg.map(r=>r.channel)));
+  const weeks = weekList(STATE.data.weekly_waterfall).filter(w=>{
+    const row = STATE.data.weekly_waterfall.find(r=>r.week_start===w);
+    return row && row.is_partial === false;
+  });
+  const fill = (sel, items) => { for (const it of items){ const o=document.createElement("option"); o.value=it; o.textContent=it; sel.appendChild(o);} };
+  fill(document.getElementById("f-market"), markets);
+  fill(document.getElementById("f-tier"), tiers);
+  fill(document.getElementById("f-channel"), channels);
+  const fromSel = document.getElementById("f-from"), toSel = document.getElementById("f-to");
+  for (const w of weeks){ const o1=document.createElement("option"); o1.value=w; o1.textContent=w; fromSel.appendChild(o1);
+    const o2=document.createElement("option"); o2.value=w; o2.textContent=w; toSel.appendChild(o2); }
+  fromSel.value = weeks[0]||""; toSel.value = weeks[weeks.length-1]||"";
+  STATE.filters.from = fromSel.value; STATE.filters.to = toSel.value;
+}
+function wireFilterBar(){
+  document.getElementById("f-market").addEventListener("change", e=>{ STATE.filters.market=e.target.value; onFiltersChanged(); });
+  document.getElementById("f-tier").addEventListener("change", e=>{ STATE.filters.tier=e.target.value; onFiltersChanged(); });
+  document.getElementById("f-channel").addEventListener("change", e=>{ STATE.filters.channel=e.target.value; onFiltersChanged(); });
+  document.getElementById("f-from").addEventListener("change", e=>{ STATE.filters.from=e.target.value; onFiltersChanged(); });
+  document.getElementById("f-to").addEventListener("change", e=>{ STATE.filters.to=e.target.value; onFiltersChanged(); });
+  document.getElementById("f-reset").addEventListener("click", ()=>{
+    STATE.filters = {market:"",tier:"",channel:"",from:document.getElementById("f-from").options[0]?.value||"",to:document.getElementById("f-to").options[document.getElementById("f-to").options.length-1]?.value||""};
+    document.getElementById("f-market").value=""; document.getElementById("f-tier").value=""; document.getElementById("f-channel").value="";
+    document.getElementById("f-from").value=STATE.filters.from; document.getElementById("f-to").value=STATE.filters.to;
+    onFiltersChanged();
+  });
+  document.getElementById("fxUSD").addEventListener("click", ()=>setCurrency("USD"));
+  document.getElementById("fxAED").addEventListener("click", ()=>setCurrency("AED"));
+}
+function setCurrency(c){
+  STATE.currency = c;
+  document.getElementById("fxUSD").setAttribute("aria-pressed", c==="USD");
+  document.getElementById("fxAED").setAttribute("aria-pressed", c==="AED");
+  renderAll();
+}
+function onFiltersChanged(){ renderAll(); }
+
+/* ---------- chart helpers ---------- */
+Chart.defaults.color = "#475569";
+Chart.defaults.font.size = 11;
+Chart.defaults.borderColor = "#e2e8f0";
+const PALETTE = ["#0f172a","#b45309","#2563eb","#15803d","#7c3aed","#be185d","#0891b2","#ca8a04"];
+function makeChart(canvasId, config){
+  const el = document.getElementById(canvasId);
+  if (!el) return null;
+  if (STATE.charts[canvasId]) { STATE.charts[canvasId].destroy(); }
+  const chart = new Chart(el.getContext("2d"), config);
+  STATE.charts[canvasId] = chart;
+  return chart;
+}
+
+/* ---------- data-basis strings (G8: from meta.json, never hand-typed) ---------- */
+function renderDataBasis(){
+  const m = STATE.meta;
+  document.getElementById("dataBasisTag").textContent =
+    `Sample dataset · ${m.n_weeks} weeks, ${m.first_week} to ${m.last_complete_week} (complete) · computed ${m.generated}`;
+  document.getElementById("dataNote").textContent =
+    `Synthetic data; patterns calibrated to a real diagnostics booking book.`;
+}
+
+/* ---------- RENDER_ALL ---------- */
+function renderAll(){
+  renderOverview();
+  renderLeakage();
+  renderPricing();
+  renderSegments();
+  renderMethodology();
+}
+
+/* ===== RENDER:OVERVIEW ===== */
+function stackStepText(){
+  const rows = completeWeeks(STATE.data.weekly_stack);
+  const byTier = groupSum(rows, r=>r.n_disc_types);
+  const g0 = byTier.get("0")?.gm_pct;
+  const g1 = byTier.get("1")?.gm_pct;
+  const g2 = byTier.get("2")?.gm_pct;
+  const g3 = byTier.get("3+")?.gm_pct;
+  return {g0,g1,g2,g3, step1:g0-g1, step2:g1-g2, step3:g2-g3};
+}
+function renderHero(){
+  const s = stackStepText();
+  const coupon = completeWeeks(STATE.data.weekly_coupon);
+  const tailRows = coupon.filter(r=>r.bookings_negative_gm>0);
+  const totalNegGM = tailRows.reduce((a,r)=>a + Math.min(0, r.gm/r.bookings*r.bookings_negative_gm), 0);
+  document.getElementById("heroSoWhat").textContent =
+    `Stacking discounts costs margin fast: the first layer costs ${s.step1.toFixed(0)} GM points, the second ${s.step2.toFixed(0)}, and 3+ layers another ${s.step3.toFixed(0)} — and a handful of coupons push bookings margin-negative outright. Cap the stack.`;
+}
+function renderKPIStrip(){
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const weeks = weekList(rows);
+  const last = lastWeekWithinRange(weeks);
+  const prev = prevWeek(weeks, last);
+  const curr = sumRows(rows.filter(r=>r.week_start===last));
+  const prior = prev ? sumRows(rows.filter(r=>r.week_start===prev)) : null;
+  const n = curr.bookings;
+  const cards = [
+    {label:"Bookings", val: fmtInt(curr.bookings), delta: deltaChip(curr.bookings, prior?.bookings, true)},
+    {label:"Net revenue", val: fmtMoney(curr.net), delta: deltaChip(curr.net, prior?.net, true)},
+    {label:"Gross margin", val: fmtMoney(curr.gm), delta: deltaChip(curr.gm, prior?.gm, true)},
+    {label:"GM%", val: n<MIN_N() ? "—" : fmtPct(curr.gm_pct), delta: n<MIN_N()? `<span class="insufficient">n=${n}</span>` : deltaChip(curr.gm_pct, prior?.gm_pct, true, 1, true)}
+  ];
+  document.getElementById("kpiStrip").innerHTML = cards.map(c=>`
+    <div class="kpi"><div class="label">${c.label}</div><div class="value">${c.val}</div><div class="delta">${c.delta}</div></div>
+  `).join("");
+}
+function lastWeekWithinRange(weeks){
+  if (!weeks.length) return null;
+  return weeks[weeks.length-1];
+}
+function renderVAS(){
+  const s = stackStepText();
+  const stackRows = completeWeeks(STATE.data.weekly_stack);
+  const weeksN = weekList(stackRows).length || 1;
+  const annFactor = 52 / weeksN;
+  // GM recovered by capping at 2 discount types, at loss rates 0/15/30%
+  const sim = runSimulator({capType:"n", capValue:2, lossRate:0});
+  const sim15 = runSimulator({capType:"n", capValue:2, lossRate:15});
+  const sim30 = runSimulator({capType:"n", capValue:2, lossRate:30});
+  const coupon = completeWeeks(STATE.data.weekly_coupon);
+  const negGMUsd = coupon.reduce((a,r)=>{
+    if (!r.bookings || !r.bookings_negative_gm) return a;
+    return a + estGmLostOnNegative(r);
+  }, 0);
+  document.getElementById("vasStrip").innerHTML = `
+    <div class="vas"><div class="label">Annualised GM recovered — cap at 2, 0% volume loss</div><div class="value">${fmtMoney(sim.netChange*annFactor)}</div><div class="assume">no bookings lost</div></div>
+    <div class="vas"><div class="label">Annualised GM recovered — cap at 2, 15% volume loss</div><div class="value">${fmtMoney(sim15.netChange*annFactor)}</div><div class="assume">default assumption, see Methodology</div></div>
+    <div class="vas"><div class="label">Annualised GM lost to GM-negative bookings</div><div class="value">${fmtMoney(negGMUsd*annFactor)}</div><div class="assume">from over-stacked coupons, complete weeks</div></div>
+  `;
+}
+function renderOvTrend(){
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const byWeek = groupSum(rows, r=>r.week_start);
+  const weeks = Array.from(byWeek.keys()).sort();
+  const gmPct = weeks.map(w=>byWeek.get(w).gm_pct);
+  const ns = weeks.map(w=>byWeek.get(w).bookings);
+  makeChart("ovTrendChart", {
+    type:"line",
+    data:{labels:weeks, datasets:[{label:"GM%", data:gmPct.map((v,i)=> ns[i]<MIN_N()?null:v), borderColor:PALETTE[1], backgroundColor:"transparent", tension:.25, spanGaps:true}]},
+    options:{plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>Number(v).toFixed(1)+"%"}}}, responsive:true, maintainAspectRatio:false}
+  });
+  const first = gmPct[0], lastV = gmPct[gmPct.length-1];
+  document.getElementById("ovTrendCaption").innerHTML =
+    `<b>So what:</b> GM% moved from ${fmtPct(first)} to ${fmtPct(lastV)} over the selected range. ` +
+    `<b>Action:</b> check Discount leakage for the driver. <b>Confidence:</b> n≥${MIN_N()} every week shown.`;
+}
+function buildWaterfallSteps(row){
+  const steps = [
+    {k:"offer", label:"Offer price", kind:"total", amt:row.offer},
+    {k:"campaign", label:"Campaign", kind:"minus", amt:row.campaign},
+    {k:"member", label:"Member", kind:"minus", amt:row.member},
+    {k:"coupon_d", label:"Coupon", kind:"minus", amt:row.coupon_d},
+    {k:"wallet", label:"Wallet credit", kind:"minus", amt:row.wallet},
+    {k:"gift", label:"Gift card", kind:"minus", amt:row.gift},
+    {k:"net", label:"Net revenue", kind:"total", amt:row.net},
+    {k:"cost", label:"Cost", kind:"minus", amt:row.cost},
+    {k:"gm", label:"Gross margin", kind:"total", amt:row.gm}
+  ];
+  let cum = 0, base=[], value=[], color=[];
+  for (const s of steps){
+    if (s.kind === "total"){ base.push(0); value.push(s.amt); cum = s.amt; color.push("#0f172a"); }
+    else { base.push(cum - s.amt); value.push(s.amt); cum -= s.amt; color.push("#b45309"); }
+  }
+  return {steps, base, value, color};
+}
+function renderOvWaterfall(){
+  const rows = completeWeeks(STATE.data.weekly_waterfall);
+  const weeks = weekList(rows);
+  const picker = document.getElementById("ovWeekPicker");
+  if (!picker.options.length){
+    weeks.forEach(w=>{ const o=document.createElement("option"); o.value=w; o.textContent=w; picker.appendChild(o); });
+    picker.value = weeks[weeks.length-1];
+    picker.addEventListener("change", renderOvWaterfall);
+  }
+  const wk = picker.value || weeks[weeks.length-1];
+  const row = rows.find(r=>r.week_start===wk);
+  const prevW = prevWeek(weeks, wk);
+  const prevRow = prevW ? rows.find(r=>r.week_start===prevW) : null;
+  const {steps, base, value, color} = buildWaterfallSteps(row);
+  makeChart("ovWaterfallChart", {
+    type:"bar",
+    data:{ labels: steps.map(s=>s.label),
+      datasets:[
+        {label:"base", data:base, backgroundColor:"transparent", stack:"s"},
+        {label:"value", data:value, backgroundColor:color, stack:"s"}
+      ]},
+    options:{plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=> ctx.dataset.label==="value" ? fmtMoneyFull(ctx.raw) : ""}}},
+      scales:{x:{stacked:true, ticks:{autoSkip:false,maxRotation:45,minRotation:30}}, y:{stacked:true, ticks:{callback:v=>fmtMoney(v)}}},
+      responsive:true, maintainAspectRatio:false}
+  });
+  const reconciled = Math.abs((row.net - row.cost) - row.gm) < 0.01;
+  document.getElementById("ovReconcile").innerHTML = reconciled
+    ? `<span class="reconcile-ok">reconciles ✓ (net − cost = GM)</span>`
+    : `<span class="reconcile-bad">does not reconcile ✗</span>`;
+  let deltas = steps.map(s=> prevRow ? Math.abs(s.amt - prevRow[s.k]) : 0);
+  const maxIdx = deltas.indexOf(Math.max(...deltas));
+  const tbody = document.querySelector("#ovWaterfallTable tbody");
+  tbody.innerHTML = steps.map((s,i)=>{
+    const pctOfOffer = (s.amt / row.offer * 100).toFixed(1) + "%";
+    const d = prevRow ? deltaChip(s.amt, prevRow[s.k], s.kind==="total") : "—";
+    const mover = i===maxIdx && prevRow ? ` <span class="chip medium">▲ biggest mover</span>` : "";
+    return `<tr><td>${s.label}${mover}</td><td>${fmtMoneyFull(s.amt)}</td><td>${pctOfOffer}</td><td>${d}</td></tr>`;
+  }).join("");
+  // 8-week sparkline of GM%
+  const last8 = weeks.slice(-8);
+  const sparkVals = last8.map(w=>rows.find(r=>r.week_start===w).gm_pct);
+  const sparkMin = Math.min(...sparkVals), sparkMax = Math.max(...sparkVals);
+  const sparkPad = Math.max(0.3, (sparkMax-sparkMin)*0.25);
+  makeChart("ovSparkline", {
+    type:"bar",
+    data:{labels:last8, datasets:[{data:sparkVals, backgroundColor:PALETTE[0]}]},
+    options:{plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtPct(ctx.raw)}}},
+      scales:{x:{display:false}, y:{display:false, min:sparkMin-sparkPad, max:sparkMax+sparkPad}}, responsive:true, maintainAspectRatio:false}
+  });
+}
+function renderOvActionTeaser(){
+  const actions = computeActionList().slice(0,3);
+  const tbody = document.querySelector("#ovActionTeaser tbody");
+  tbody.innerHTML = actions.map(a=>`<tr><td>${a.action}</td><td>${fmtMoney(a.impactLow)}–${fmtMoney(a.impactHigh)}</td><td><span class="chip tier${a.tier}">${a.tier}</span></td></tr>`).join("");
+}
+function renderOverview(){
+  renderHero();
+  renderKPIStrip();
+  renderVAS();
+  renderOvTrend();
+  renderOvWaterfall();
+  renderOvActionTeaser();
+}
+/* ===== RENDER:LEAKAGE ===== */
+const STACK_ORDER = ["0","1","2","3+"];
+function computeStackBuckets(){
+  const rows = completeWeeks(filtered("weekly_stack"));
+  const byBucket = groupSum(rows, r=>String(r.n_disc_types));
+  const totalBookings = STACK_ORDER.reduce((a,k)=> a + (byBucket.get(k)?.bookings||0), 0);
+  return STACK_ORDER.map(k=>{
+    const s = byBucket.get(k) || {bookings:0,offer:0,campaign:0,member:0,coupon_d:0,wallet:0,gift:0,net:0,cost:0,gm:0,gm_pct:null};
+    const discount = s.campaign+s.member+s.coupon_d+s.wallet+s.gift;
+    return {
+      bucket:k, n:s.bookings, share: totalBookings? s.bookings/totalBookings*100 : 0,
+      gm_pct: s.gm_pct, avgDiscountPerBooking: s.bookings? discount/s.bookings : 0,
+      avgGmPerBooking: s.bookings? s.gm/s.bookings : 0, avgOfferPerBooking: s.bookings? s.offer/s.bookings:0,
+      avgDiscountPct: s.offer? discount/s.offer*100 : 0, bookings:s.bookings
+    };
+  });
+}
+function renderLkStack(){
+  const buckets = computeStackBuckets();
+  const rows = completeWeeks(filtered("weekly_stack"));
+  const weeks = weekList(rows);
+  const byWeekBucket = new Map();
+  for (const r of rows){ const k = r.week_start+"|"+r.n_disc_types; byWeekBucket.set(k, r); }
+  const datasets = STACK_ORDER.map((b,i)=>({
+    label: b+" discount types", borderColor: PALETTE[i], backgroundColor:"transparent", tension:.2,
+    data: weeks.map(w=>{ const r = byWeekBucket.get(w+"|"+b); return (r && r.bookings>=MIN_N()) ? r.gm_pct : null; })
+  }));
+  makeChart("lkStackChart", {
+    type:"line", data:{labels:weeks, datasets},
+    options:{plugins:{legend:{position:"bottom", labels:{boxWidth:10,font:{size:10}}}}, scales:{y:{ticks:{callback:v=>Number(v).toFixed(1)+"%"}}}, responsive:true, maintainAspectRatio:false}
+  });
+  document.querySelector("#lkStackTable tbody").innerHTML = buckets.map(b=>`
+    <tr><td>${b.bucket}</td><td>${b.share.toFixed(1)}%</td><td>${pctOrSuppressed(b.n, fmtPct(b.gm_pct))}</td><td>${fmtInt(b.n)}</td></tr>
+  `).join("");
+  const step1 = buckets[0].gm_pct - buckets[1].gm_pct, step2 = buckets[1].gm_pct - buckets[2].gm_pct, step3 = buckets[2].gm_pct - buckets[3].gm_pct;
+  document.getElementById("lkStackCaption").innerHTML =
+    `<b>So what:</b> each added discount layer costs ${step1.toFixed(1)}, ${step2.toFixed(1)} and ${step3.toFixed(1)} GM points respectively. ` +
+    `<b>Action:</b> cap at 2 discount types (see simulator). <b>Confidence:</b> every cell n ≥ ${MIN_N()}.`;
+}
+function renderLkBubble(){
+  const rows = completeWeeks(filtered("weekly_coupon"));
+  const byCoupon = groupSum(rows, r=>r.coupon);
+  const points = [];
+  for (const [coupon, s] of byCoupon){
+    if (s.bookings < MIN_N()) continue;
+    const discount = s.campaign+s.member+s.coupon_d+s.wallet+s.gift;
+    points.push({x: s.offer? discount/s.offer*100 : 0, y: s.gm_pct, r: Math.max(4, Math.min(28, Math.sqrt(s.bookings)/4)), coupon, n:s.bookings});
+  }
+  makeChart("lkBubbleChart", {
+    type:"bubble",
+    data:{datasets:[{label:"Coupons", data:points, backgroundColor:"rgba(180,83,9,.55)", borderColor:"#b45309"}]},
+    options:{plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=>{const p=ctx.raw; return `${p.coupon}: ${p.x.toFixed(1)}% discount, ${p.y.toFixed(1)}% GM, n=${p.n}`;}}}},
+      scales:{x:{title:{display:true,text:"Avg. discount % of offer"}}, y:{title:{display:true,text:"GM%"}}},
+      responsive:true, maintainAspectRatio:false}
+  });
+}
+function computeCouponRisk(){
+  const rows = completeWeeks(filtered("weekly_coupon"));
+  const byCoupon = groupSum(rows, r=>r.coupon);
+  const nRaw = new Map(); for (const r of rows){ const prev=nRaw.get(r.coupon)||{b3:0,bn:0}; prev.b3+=r.bookings_3plus||0; prev.bn+=r.bookings_negative_gm||0; nRaw.set(r.coupon,prev); }
+  const out = [];
+  for (const [coupon, s] of byCoupon){
+    if (!coupon || s.bookings < MIN_N()) continue;
+    const extra = nRaw.get(coupon) || {b3:0,bn:0};
+    const share3 = s.bookings? extra.b3/s.bookings : 0;
+    const shareNeg = s.bookings? extra.bn/s.bookings : 0;
+    const exposure = 0.5*share3 + 0.5*shareNeg;
+    const band = exposure > 0.25 ? "High" : exposure > 0.10 ? "Medium" : "Low";
+    out.push({coupon, share3, shareNeg, exposure, band, n:s.bookings});
+  }
+  return out.sort((a,b)=>b.exposure-a.exposure);
+}
+function renderLkRisk(){
+  const risk = computeCouponRisk();
+  document.querySelector("#lkRiskTable tbody").innerHTML = risk.map(r=>`
+    <tr><td>${r.coupon}</td><td>${(r.share3*100).toFixed(1)}%</td><td>${(r.shareNeg*100).toFixed(1)}%</td><td>${r.exposure.toFixed(2)}</td>
+    <td><span class="chip ${r.band.toLowerCase()}">${r.band}</span></td><td>${fmtInt(r.n)}</td></tr>
+  `).join("");
+}
+function renderLkTail(){
+  const rows = completeWeeks(filtered("weekly_coupon"));
+  const byCoupon = new Map();
+  for (const r of rows){
+    if (!r.coupon) continue;
+    const prev = byCoupon.get(r.coupon) || {bookings:0, negN:0, gmLost:0};
+    prev.bookings += r.bookings; prev.negN += (r.bookings_negative_gm||0); prev.gmLost += estGmLostOnNegative(r);
+    byCoupon.set(r.coupon, prev);
+  }
+  const out = [];
+  for (const [coupon, s] of byCoupon){
+    if (s.negN<=0) continue;
+    out.push({coupon, bookings:s.bookings, shareNeg: s.bookings? s.negN/s.bookings*100:0, gmLost:s.gmLost});
+  }
+  out.sort((a,b)=>a.gmLost-b.gmLost);
+  document.querySelector("#lkTailTable tbody").innerHTML = out.map(r=>`
+    <tr><td>${r.coupon}</td><td>${fmtInt(r.bookings)}</td><td>${r.shareNeg.toFixed(1)}%</td><td style="color:var(--bad)">${fmtMoney(r.gmLost)}</td></tr>
+  `).join("") || `<tr><td colspan="4" class="insufficient">No GM-negative bookings in range.</td></tr>`;
+}
+function renderLkTimeline(){
+  const rows = completeWeeks(filtered("weekly_waterfall"));
+  const weeks = weekList(rows);
+  const gmPct = weeks.map(w=>rows.find(r=>r.week_start===w).gm_pct);
+  const events = STATE.data.promo_events;
+  const evByWeek = new Map();
+  for (const e of events){ if (!evByWeek.has(e.week_start)) evByWeek.set(e.week_start, []); evByWeek.get(e.week_start).push(e); }
+  const eventPoints = weeks.map((w,i)=> evByWeek.has(w) ? gmPct[i] : null);
+  makeChart("lkTimelineChart", {
+    type:"line",
+    data:{labels:weeks, datasets:[
+      {label:"GM%", data:gmPct, borderColor:PALETTE[0], backgroundColor:"transparent", tension:.2, order:2},
+      {label:"Event", data:eventPoints, borderColor:"transparent", backgroundColor:"#b91c1c", pointStyle:"triangle", pointRadius:7, showLine:false, order:1}
+    ]},
+    options:{plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=>{
+      if (ctx.dataset.label==="Event"){ const es = evByWeek.get(ctx.label)||[]; return es.map(e=>`${e.market}: ${e.event} (${e.scope})`); }
+      return `GM% ${ctx.raw?.toFixed?.(1)}%`;
+    }}}}, scales:{y:{ticks:{callback:v=>Number(v).toFixed(1)+"%"}}}, responsive:true, maintainAspectRatio:false}
+  });
+}
+function runSimulator(opts, bucketsOverride){
+  const buckets = bucketsOverride || computeStackBuckets();
+  const lossRate = (opts.lossRate||0)/100;
+  let recoveredPerBookingSum=0, affected=0, forgoneGmSum=0, grossRecoveredSum=0;
+  let refDiscountRate, refOfferRate;
+  if (opts.capType === "n"){
+    const refBucket = buckets.find(b=>b.bucket===String(opts.capValue)) || buckets[Math.min(opts.capValue, buckets.length-1)];
+    refDiscountRate = refBucket.avgDiscountPerBooking;
+    for (const b of buckets){
+      const bn = b.bucket === "3+" ? 4 : +b.bucket;
+      if (bn > opts.capValue){
+        const recoveredPer = Math.max(0, b.avgDiscountPerBooking - refDiscountRate);
+        grossRecoveredSum += recoveredPer * b.bookings;
+        forgoneGmSum += b.avgGmPerBooking * b.bookings;
+        affected += b.bookings;
+      }
+    }
+  } else {
+    for (const b of buckets){
+      if (b.avgDiscountPct > opts.capValue){
+        const capDiscountPerBooking = opts.capValue/100 * b.avgOfferPerBooking;
+        const recoveredPer = Math.max(0, b.avgDiscountPerBooking - capDiscountPerBooking);
+        grossRecoveredSum += recoveredPer * b.bookings;
+        forgoneGmSum += b.avgGmPerBooking * b.bookings;
+        affected += b.bookings;
+      }
+    }
+  }
+  const retained = 1 - lossRate;
+  const grossRecovered = grossRecoveredSum * retained;
+  const forgone = forgoneGmSum * lossRate;
+  const netChange = grossRecovered - forgone;
+  const breakEven = (grossRecoveredSum + forgoneGmSum) > 0 ? grossRecoveredSum/(grossRecoveredSum+forgoneGmSum)*100 : 0;
+  return { affected, grossRecovered, forgone, netChange, breakEven, grossRecoveredSum, forgoneGmSum };
+}
+function renderSimOutputs(){
+  const capType = document.querySelector('input[name="capType"]:checked').value;
+  const capValue = capType==="n" ? +document.getElementById("simCapN").value : +document.getElementById("simCapPct").value;
+  const lossRate = +document.getElementById("simLoss").value;
+  const r = runSimulator({capType, capValue, lossRate});
+  document.getElementById("simOutputs").innerHTML = `
+    <div class="box"><div class="label">Affected bookings</div><div class="value">${fmtInt(r.affected)}</div></div>
+    <div class="box"><div class="label">Gross GM recovered (at ${lossRate}% loss)</div><div class="value" style="color:var(--good)">${fmtMoney(r.grossRecovered)}</div></div>
+    <div class="box"><div class="label">GM forgone on lost bookings (at ${lossRate}% loss)</div><div class="value" style="color:var(--bad)">${fmtMoney(-r.forgone)}</div></div>
+    <div class="box"><div class="label">Net GM change (at ${lossRate}% loss)</div><div class="value" style="color:${r.netChange>=0?'var(--good)':'var(--bad)'}">${fmtMoney(r.netChange)}</div></div>
+    <div class="box" style="grid-column:1/-1"><div class="label">Break-even volume-loss rate</div><div class="value">${r.breakEven.toFixed(1)}%</div></div>
+  `;
+}
+function wireSimulator(){
+  const capNRadio = document.querySelector('input[name="capType"][value="n"]');
+  const capPctRadio = document.querySelector('input[name="capType"][value="pct"]');
+  const syncVisibility = ()=>{
+    document.getElementById("simCapNWrap").style.display = capNRadio.checked ? "" : "none";
+    document.getElementById("simCapPctWrap").style.display = capPctRadio.checked ? "" : "none";
+  };
+  capNRadio.addEventListener("change", ()=>{ syncVisibility(); renderSimOutputs(); });
+  capPctRadio.addEventListener("change", ()=>{ syncVisibility(); renderSimOutputs(); });
+  document.getElementById("simCapN").addEventListener("input", e=>{ document.getElementById("simCapNVal").textContent=e.target.value; renderSimOutputs(); });
+  document.getElementById("simCapPct").addEventListener("input", e=>{ document.getElementById("simCapPctVal").textContent=e.target.value; renderSimOutputs(); });
+  document.getElementById("simLoss").addEventListener("input", e=>{ document.getElementById("simLossVal").textContent=e.target.value; renderSimOutputs(); });
+  syncVisibility();
+}
+let simWired = false;
+function renderLeakage(){
+  renderLkStack();
+  renderLkBubble();
+  renderLkRisk();
+  renderLkTail();
+  renderLkTimeline();
+  if (!simWired){ wireSimulator(); simWired = true; }
+  renderSimOutputs();
+}
+/* ===== RENDER:PRICING ===== */
+function masterWeeks(){ return weekList(completeWeeks(STATE.data.weekly_waterfall)); }
+function skuMarketSeries(sku, market){
+  const rows = STATE.data.weekly_market_sku.filter(r=>r.sku===sku && r.market===market && r.is_partial===false);
+  const byWeek = new Map(); for (const r of rows) byWeek.set(r.week_start, r);
+  return byWeek;
+}
+function sumWindow(byWeek, weeks){
+  const o = {bookings:0,offer:0,campaign:0,member:0,coupon_d:0,wallet:0,gift:0,net:0,cost:0,gm:0};
+  for (const w of weeks){ const r = byWeek.get(w); if (!r) continue; for (const k of Object.keys(o)) o[k]+=r[k]||0; }
+  return o;
+}
+function computePricingEvents(){
+  const weeks = masterWeeks();
+  const events = STATE.data.price_changes.filter(e=>e.status==="Uploaded" && e.change_date);
+  const out = [];
+  for (const e of events){
+    const idx = weeks.indexOf(e.change_date);
+    if (idx < 4 || idx > weeks.length-5) continue; // not enough window
+    const preWeeks = weeks.slice(idx-4, idx);
+    const postWeeks = weeks.slice(idx+1, idx+5);
+    const tByWeek = skuMarketSeries(e.sku, e.market);
+    const cByWeek = skuMarketSeries(e.sku, e.control_market);
+    const preT = sumWindow(tByWeek, preWeeks), postT = sumWindow(tByWeek, postWeeks);
+    const preC = sumWindow(cByWeek, preWeeks), postC = sumWindow(cByWeek, postWeeks);
+    if (!preT.bookings || !postT.bookings || !preC.bookings || !postC.bookings) continue;
+    const effect = (Math.log(postT.bookings/4) - Math.log(preT.bookings/4)) - (Math.log(postC.bookings/4) - Math.log(preC.bookings/4));
+    const lnRatio = Math.log(e.new_price/e.old_price);
+    const elasticity = effect / lnRatio;
+    const se = Math.sqrt(1/preT.bookings + 1/postT.bookings + 1/preC.bookings + 1/postC.bookings);
+    const half = 1.645 * se / Math.abs(lnRatio);
+    const ciLo = elasticity - half, ciHi = elasticity + half;
+    const intervalExcludes0 = (ciLo>0 && ciHi>0) || (ciLo<0 && ciHi<0);
+
+    // confound detection
+    const checkWindow = weeks.slice(idx, idx+6);
+    const promoHit = STATE.data.promo_events.some(p=>p.market===e.market && p.scope==="market" && checkWindow.includes(p.week_start));
+    const couponShare = w => { const r = tByWeek.get(w); return r && r.offer ? r.coupon_d/r.offer*100 : 0; };
+    const preCouponAvg = preWeeks.reduce((a,w)=>a+couponShare(w),0)/preWeeks.length;
+    const postCouponAvg = postWeeks.reduce((a,w)=>a+couponShare(w),0)/postWeeks.length;
+    const couponShift = Math.abs(postCouponAvg - preCouponAvg) > 10;
+    const confounded = promoHit || couponShift;
+
+    // parallel trends (pre-period log-volume slope, treated vs control)
+    const slope = (byWeek, ws) => { const a = byWeek.get(ws[0]), b = byWeek.get(ws[ws.length-1]); return (a&&b&&a.bookings>0&&b.bookings>0) ? (Math.log(b.bookings)-Math.log(a.bookings))/(ws.length-1) : 0; };
+    const slopeT = slope(tByWeek, preWeeks), slopeC = slope(cByWeek, preWeeks);
+    const preTrendOk = Math.abs(slopeT - slopeC) < 0.05;
+
+    // break-even, direction-aware 20% buffer
+    const P = e.new_price, C_perBooking = preT.cost / preT.bookings;
+    const breakeven = Math.log((e.old_price - C_perBooking)/(P - C_perBooking)) / lnRatio;
+    const margin = 0.2 * Math.abs(breakeven);
+    const increase = e.pct_change > 0;
+    const bufferedThreshold = increase ? breakeven + margin : breakeven - margin;
+    const clearsBreakeven = increase ? elasticity > bufferedThreshold : elasticity < bufferedThreshold;
+
+    // confidence tier
+    let tier, tierReason;
+    if (preT.bookings>=2000 && postT.bookings>=2000 && intervalExcludes0 && !confounded && preTrendOk){
+      tier="A"; tierReason="n≥2,000 pre/post, CI excludes 0, no confound, pre-trend ok";
+    } else if (preT.bookings>=500 && postT.bookings>=500 && !confounded){
+      tier="B"; tierReason="n≥500, no confound flag";
+    } else {
+      tier="C"; tierReason = confounded ? "confound flag raised" : "n<500 or CI includes 0";
+    }
+    out.push({
+      event_id:e.event_id, sku:e.sku, market:e.market, control_market:e.control_market,
+      old_price:e.old_price, new_price:e.new_price, pct_change:e.pct_change,
+      aspPre: preT.net/preT.bookings, aspPost: postT.net/postT.bookings,
+      volPreWk: preT.bookings/4, volPostWk: postT.bookings/4,
+      gmPre: preT.gm, gmPost: postT.gm,
+      elasticity, ciLo, ciHi, intervalExcludes0, confounded, promoHit, couponShift, preTrendOk,
+      breakeven, bufferedThreshold, clearsBreakeven, tier, tierReason,
+      n_pre_t:preT.bookings, n_post_t:postT.bookings
+    });
+  }
+  return out;
+}
+function renderPmLog(){
+  const rows = STATE.data.price_changes;
+  const statusClass = s => "status-"+s.toLowerCase().replace(/\s+/g,"");
+  document.querySelector("#pmLogTable tbody").innerHTML = rows.map(r=>`
+    <tr><td>${r.event_id}</td><td>${r.sku}</td><td>${r.market}</td><td>${fmtMoneyFull(r.old_price)}</td><td>${fmtMoneyFull(r.new_price)}</td>
+    <td>${r.price_change>0?"+":""}${fmtMoneyFull(r.price_change)}</td><td>${r.pct_change>0?"+":""}${r.pct_change.toFixed(1)}%</td>
+    <td><span class="chip ${statusClass(r.status)}">${r.status}</span></td>
+    <td>${r.change_date ? r.change_date : `Not dated — status: ${r.status}`}</td></tr>
+  `).join("");
+}
+function renderPmTracker(){
+  const events = computePricingEvents();
+  document.querySelector("#pmTrackerTable tbody").innerHTML = events.map(e=>{
+    const flags = [];
+    if (e.promoHit) flags.push(`<span class="chip confound">promo</span>`);
+    if (e.couponShift) flags.push(`<span class="chip confound">coupon shift</span>`);
+    return `<tr>
+      <td>${e.event_id}</td><td>${e.sku} / ${e.market}</td><td>${e.control_market}</td>
+      <td>${fmtMoneyFull(e.aspPre)} → ${fmtMoneyFull(e.aspPost)}</td>
+      <td>${fmtInt(e.volPreWk)}/wk → ${fmtInt(e.volPostWk)}/wk</td>
+      <td>${fmtMoney(e.gmPre)} → ${fmtMoney(e.gmPost)}</td>
+      <td>${e.elasticity.toFixed(2)} (${e.ciLo.toFixed(2)}, ${e.ciHi.toFixed(2)})</td>
+      <td>${e.clearsBreakeven ? '<span class="chip low">clears</span>' : '<span class="chip high">misses</span>'} <span class="n-tag">bk=${e.breakeven.toFixed(2)}</span></td>
+      <td>${e.preTrendOk ? "ok" : "weak"}</td>
+      <td>${flags.join(" ") || "—"}</td>
+      <td><span class="chip tier${e.tier}" title="${e.tierReason}">${e.tier}</span></td>
+    </tr>`;
+  }).join("");
+  document.getElementById("pmTrackerCaption").innerHTML =
+    `<b>So what:</b> tier-A/B events with elasticity clearing break-even are safe to replicate; confounded events (${events.filter(e=>e.confounded).map(e=>e.event_id).join(", ")||"none"}) are shown but excluded from ranking. ` +
+    `<b>Confidence:</b> rule-based tiers, see table.`;
+}
+function computeActionList(){
+  const annFactor = 52 / (weekList(completeWeeks(STATE.data.weekly_stack)).length || 1);
+  const tierWeight = {A:1.0, B:0.6, C:0.3};
+  const actions = [];
+
+  const simLo = runSimulator({capType:"n", capValue:2, lossRate:30});
+  const simHi = runSimulator({capType:"n", capValue:2, lossRate:0});
+  actions.push({
+    action:"Cap discount stack at 2 types", impactLow: simLo.netChange*annFactor, impactHigh: simHi.netChange*annFactor,
+    tier:"A", owner:"Pricing / Promo ops", firstStep:"Enforce a 2-discount-type cap in the coupon/offer engine"
+  });
+
+  const risk = computeCouponRisk().filter(r=>r.band==="High").slice(0,3);
+  for (const r of risk){
+    const tailRows = completeWeeks(filtered("weekly_coupon")).filter(x=>x.coupon===r.coupon);
+    const gmLost = tailRows.reduce((a,x)=>a+estGmLostOnNegative(x), 0) * annFactor;
+    actions.push({
+      action:`Cap or retire ${r.coupon}`, impactLow: Math.abs(gmLost)*0.5, impactHigh: Math.abs(gmLost),
+      tier: r.n>=2000 ? "A":"B", owner:"Coupon / Promo ops", firstStep:`Retire or cap ${r.coupon}'s stacking eligibility`
+    });
+  }
+
+  const events = computePricingEvents().filter(e=>!e.confounded && (e.tier==="A"||e.tier==="B") && e.clearsBreakeven);
+  for (const e of events){
+    const gmDeltaWk = (e.gmPost - e.gmPre)/4;
+    actions.push({
+      action:`Replicate ${e.event_id} — ${e.sku} in ${e.market} (${e.pct_change>0?'+':''}${e.pct_change.toFixed(0)}%) to similar markets`,
+      impactLow: Math.max(0, gmDeltaWk*0.5)*52, impactHigh: Math.max(0, gmDeltaWk)*52,
+      tier: e.tier, owner:"Pricing", firstStep:`Confirm ${e.sku} elasticity read, then schedule the same move in a comparable market`
+    });
+  }
+
+  actions.forEach(a=> a._score = (a.impactHigh) * tierWeight[a.tier]);
+  actions.sort((a,b)=>b._score-a._score);
+  return actions;
+}
+function renderPmActions(){
+  const actions = computeActionList();
+  document.querySelector("#pmActionTable tbody").innerHTML = actions.map(a=>`
+    <tr><td>${a.action}</td><td>${fmtMoney(a.impactLow)}–${fmtMoney(a.impactHigh)}</td>
+    <td><span class="chip tier${a.tier}">${a.tier}</span></td><td>${a.owner}</td><td>${a.firstStep}</td></tr>
+  `).join("");
+}
+function renderPricing(){
+  renderPmLog();
+  renderPmTracker();
+  renderPmActions();
+}
+/* ===== RENDER:SEGMENTS ===== */
+function filteredExcluding(key, excl){
+  const f = STATE.filters;
+  return STATE.data[key].filter(row=>{
+    if (!excl.includes("market") && f.market && row.market && row.market!==f.market) return false;
+    if (!excl.includes("tier") && f.tier && row.tier && row.tier!==f.tier) return false;
+    if (!excl.includes("channel") && f.channel && row.channel && row.channel!==f.channel) return false;
+    if (f.from && row.week_start && row.week_start < f.from) return false;
+    if (f.to && row.week_start && row.week_start > f.to) return false;
+    return true;
+  });
+}
+function lineSmallMultiple(canvasId, weeks, seriesMap){
+  const datasets = Array.from(seriesMap.entries()).map(([label, vals], i)=>({
+    label, data: vals, borderColor: PALETTE[i], backgroundColor:"transparent", tension:.2
+  }));
+  makeChart(canvasId, { type:"line", data:{labels:weeks, datasets},
+    options:{plugins:{legend:{position:"bottom", labels:{boxWidth:10,font:{size:9}}}}, responsive:true, maintainAspectRatio:false} });
+}
+function renderSgFreshRepeat(){
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const weeks = weekList(rows);
+  const byWeekFlag = groupSum(rows, r=>r.week_start+"|"+r.flag);
+  const series = (fn) => { const m=new Map(); for (const flag of ["Fresh","Repeat"]){ m.set(flag, weeks.map(w=>{ const s=byWeekFlag.get(w+"|"+flag); return s? fn(s):null; })); } return m; };
+  lineSmallMultiple("sgFrGmChart", weeks, series(s=> s.bookings>=MIN_N() ? s.gm_pct : null));
+  lineSmallMultiple("sgFrAspChart", weeks, series(s=> s.bookings>=MIN_N() ? s.net/s.bookings : null));
+  lineSmallMultiple("sgFrBkChart", weeks, series(s=>s.bookings));
+  const tot = groupSum(rows, r=>r.flag);
+  const freshS = tot.get("Fresh"), repS = tot.get("Repeat");
+  document.getElementById("sgFrGmCaption").innerHTML = `<b>So what:</b> Fresh ${fmtPct(freshS?.gm_pct)} vs. Repeat ${fmtPct(repS?.gm_pct)} GM over the range.`;
+  document.getElementById("sgFrAspCaption").innerHTML = `<b>So what:</b> Fresh ${fmtMoneyFull((freshS?.net||0)/(freshS?.bookings||1))} vs. Repeat ${fmtMoneyFull((repS?.net||0)/(repS?.bookings||1))} ASP.`;
+  document.getElementById("sgFrBkCaption").innerHTML = `<b>n:</b> Fresh ${fmtInt(freshS?.bookings)}, Repeat ${fmtInt(repS?.bookings)}.`;
+}
+function renderSgTier(){
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const byTier = groupSum(rows, r=>r.tier);
+  const tiers = ["Standard","Member","Premium member"];
+  document.querySelector("#sgTierTable tbody").innerHTML = tiers.map(t=>{
+    const s = byTier.get(t);
+    if (!s) return `<tr><td>${t}</td><td colspan="4" class="insufficient">no data in range</td></tr>`;
+    return `<tr><td>${t}</td><td>${pctOrSuppressed(s.bookings,fmtPct(s.gm_pct))}</td><td>${fmtMoneyFull(s.net/s.bookings)}</td><td>${fmtInt(s.bookings)}</td><td>${fmtInt(s.bookings)}</td></tr>`;
+  }).join("");
+}
+function renderSgPremium(){
+  const rows = completeWeeks(filteredExcluding("weekly_segment", ["tier"])).filter(r=>r.tier==="Premium member");
+  const weeks = weekList(rows);
+  const byWeekFlag = groupSum(rows, r=>r.week_start+"|"+r.flag);
+  const fresh = weeks.map(w=>byWeekFlag.get(w+"|Fresh")?.bookings||0);
+  const repeat = weeks.map(w=>byWeekFlag.get(w+"|Repeat")?.bookings||0);
+  const share = weeks.map((w,i)=>{ const tot=fresh[i]+repeat[i]; return tot>=MIN_N() ? fresh[i]/tot*100 : null; });
+  makeChart("sgPremiumChart", {
+    type:"bar",
+    data:{labels:weeks, datasets:[
+      {type:"bar", label:"Fresh", data:fresh, backgroundColor:PALETTE[0], stack:"v", yAxisID:"y"},
+      {type:"bar", label:"Repeat", data:repeat, backgroundColor:PALETTE[2], stack:"v", yAxisID:"y"},
+      {type:"line", label:"Fresh share %", data:share, borderColor:PALETTE[1], backgroundColor:"transparent", yAxisID:"y1", spanGaps:true}
+    ]},
+    options:{scales:{y:{stacked:true, position:"left"}, y1:{position:"right", grid:{drawOnChartArea:false}, ticks:{callback:v=>Number(v).toFixed(1)+"%"}}},
+      plugins:{legend:{position:"bottom", labels:{boxWidth:10,font:{size:9}}}}, responsive:true, maintainAspectRatio:false}
+  });
+  const lastShare = share.filter(v=>v!=null).slice(-1)[0];
+  document.getElementById("sgPremiumCaption").innerHTML = lastShare!=null
+    ? `<b>So what:</b> Premium member Fresh share is ${lastShare.toFixed(1)}% in the latest week shown.`
+    : `<span class="insufficient">n too small in latest week</span>`;
+}
+function renderSgChannelTrend(){
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const weeks = weekList(rows);
+  const channels = ["Self","Sales","Field collector"];
+  const byWeekCh = groupSum(rows, r=>r.week_start+"|"+r.channel);
+  const byWeek = groupSum(rows, r=>r.week_start);
+  const datasets = channels.map((c,i)=>({type:"bar", label:c, data: weeks.map(w=>byWeekCh.get(w+"|"+c)?.bookings||0), backgroundColor:PALETTE[i], stack:"v", yAxisID:"y"}));
+  datasets.push({type:"line", label:"Blended GM%", data: weeks.map(w=>byWeek.get(w)?.gm_pct??null), borderColor:"#0f172a", backgroundColor:"transparent", yAxisID:"y1"});
+  makeChart("sgChannelTrendChart", { type:"bar", data:{labels:weeks, datasets},
+    options:{scales:{y:{stacked:true}, y1:{position:"right", grid:{drawOnChartArea:false}, ticks:{callback:v=>Number(v).toFixed(1)+"%"}}},
+      plugins:{legend:{position:"bottom", labels:{boxWidth:10,font:{size:9}}}}, responsive:true, maintainAspectRatio:false} });
+  const byChTotal = groupSum(rows, r=>r.channel);
+  const shares = channels.map(c=> byChTotal.get(c)?.bookings || 0);
+  const totalBk = shares.reduce((a,b)=>a+b,0);
+  document.getElementById("sgChannelTrendCaption").innerHTML = `<b>Mix:</b> ` + channels.map((c,i)=>`${c} ${totalBk?(shares[i]/totalBk*100).toFixed(0):0}%`).join(", ") + ".";
+}
+function renderSgChannelBar(){
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const channels = ["Self","Sales","Field collector"];
+  const byCh = groupSum(rows, r=>r.channel);
+  const gm = channels.map(c=>byCh.get(c)?.gm_pct??0);
+  const asp = channels.map(c=>{ const s=byCh.get(c); return s? s.net/s.bookings : 0; });
+  const depth = channels.map(c=>{ const s=byCh.get(c); if(!s) return 0; const d=s.campaign+s.member+s.coupon_d+s.wallet+s.gift; return s.offer? d/s.offer*100:0; });
+  makeChart("sgChannelBarChart", {
+    type:"bar",
+    data:{labels:channels, datasets:[
+      {label:"GM%", data:gm, backgroundColor:PALETTE[0]},
+      {label:"Discount depth %", data:depth, backgroundColor:PALETTE[1]}
+    ]},
+    options:{plugins:{legend:{position:"bottom"}}, scales:{y:{ticks:{callback:v=>Number(v).toFixed(1)+"%"}}}, responsive:true, maintainAspectRatio:false}
+  });
+  const best = channels.map((c,i)=>({c,gm:gm[i]})).sort((a,b)=>b.gm-a.gm)[0];
+  document.getElementById("sgChannelBarCaption").innerHTML = best ? `<b>So what:</b> ${best.c} runs highest GM% (${fmtPct(best.gm)}) over the selected range.` : "";
+}
+let sgMarketSort = {key:"gm_pct", dir:-1};
+function computeMarketRanking(){
+  const rows = completeWeeks(filtered("weekly_market_sku"));
+  const byMarket = groupSum(rows, r=>r.market);
+  const refOffer = (byMarket.get("A")?.offer||1) / (byMarket.get("A")?.bookings||1);
+  const out = [];
+  for (const [market, s] of byMarket){
+    if (!market) continue;
+    const offerPerBooking = s.offer/s.bookings;
+    out.push({market, gm_pct:s.gm_pct, asp:s.net/s.bookings, bookings:s.bookings, priceIndex: refOffer? offerPerBooking/refOffer : null});
+  }
+  return out;
+}
+function renderSgMarket(){
+  let rows = computeMarketRanking();
+  rows.sort((a,b)=> (a[sgMarketSort.key]-b[sgMarketSort.key])*sgMarketSort.dir);
+  document.querySelector("#sgMarketTable tbody").innerHTML = rows.map(r=>`
+    <tr><td>${r.market}</td><td>${fmtPct(r.gm_pct)}</td><td>${fmtMoneyFull(r.asp)}</td><td>${fmtInt(r.bookings)}</td><td>${r.priceIndex.toFixed(2)}</td></tr>
+  `).join("");
+}
+function wireSgMarketSort(){
+  document.querySelectorAll("#sgMarketTable th[data-k]").forEach(th=>{
+    th.addEventListener("click", ()=>{
+      const k = th.dataset.k;
+      sgMarketSort.dir = (sgMarketSort.key===k) ? -sgMarketSort.dir : -1;
+      sgMarketSort.key = k;
+      renderSgMarket();
+    });
+  });
+}
+function renderSgMatrix(){
+  const metric = document.getElementById("sgMatrixMetric").value;
+  const rows = completeWeeks(filtered("weekly_segment"));
+  const markets = Array.from(new Set(STATE.data.weekly_market_sku.map(r=>r.market))).sort();
+  const tiers = ["Standard","Member","Premium member"];
+  const byCell = groupSum(rows, r=>r.market+"|"+r.tier);
+  let html = "<thead><tr><th></th>" + markets.map(m=>`<th>${m}</th>`).join("") + "</tr></thead><tbody>";
+  for (const t of tiers){
+    html += `<tr><th>${t}</th>` + markets.map(m=>{
+      const s = byCell.get(m+"|"+t);
+      if (!s || s.bookings < MIN_N()) return `<td class="insufficient">n=${s?s.bookings:0}</td>`;
+      const v = metric==="gm_pct" ? fmtPct(s.gm_pct) : fmtMoneyFull(s.net/s.bookings);
+      return `<td>${v}</td>`;
+    }).join("") + "</tr>";
+  }
+  html += "</tbody>";
+  document.getElementById("sgMatrixTable").innerHTML = html;
+}
+let sgWired = false;
+function renderSegments(){
+  renderSgFreshRepeat();
+  renderSgTier();
+  renderSgPremium();
+  renderSgChannelTrend();
+  renderSgChannelBar();
+  renderSgMarket();
+  renderSgMatrix();
+  if (!sgWired){
+    wireSgMarketSort();
+    document.getElementById("sgMatrixMetric").addEventListener("change", renderSgMatrix);
+    sgWired = true;
+  }
+}
+/* ===== RENDER:METHODOLOGY ===== */
+let methWired = false;
+function wireMethodology(){
+  const fx = document.getElementById("asmFx");
+  const minN = document.getElementById("asmMinN");
+  fx.value = STATE.meta.fx.AED;
+  minN.value = STATE.meta.min_n_for_percentages;
+  fx.addEventListener("change", ()=>{ STATE.meta.fx.AED = +fx.value || 3.6725; renderAll(); });
+  minN.addEventListener("change", ()=>{ STATE.meta.min_n_for_percentages = +minN.value || 100; renderAll(); });
+  document.getElementById("methByodBtn").addEventListener("click", ()=>openByodModal());
+}
+function renderMethodology(){
+  if (!methWired){ wireMethodology(); methWired = true; }
+  const m = STATE.meta;
+  document.getElementById("methDatasetIntro").textContent =
+    `One simulated booking frame drives every table on this site, so they all reconcile (net − cost = GM to within $0.01 per week). ` +
+    `${m.n_weeks} weeks from ${m.first_week}; the most recent week (${m.partial_week}) is partial and excluded everywhere above. ` +
+    `Patterns were planted on purpose, to give the dashboard something real to find:`;
+  document.getElementById("methProvenance").textContent =
+    `Synthetic data, relationships calibrated to a real diagnostics book; company, sources and currency masked. ` +
+    `Generated ${m.generated} (seed ${m.seed}), ${m.n_weeks} weeks, ${m.first_week} through ${m.last_complete_week} complete (partial week ${m.partial_week} excluded throughout). ` +
+    `FX shown at 1 USD = ${m.fx.AED} AED (indicative, ${m.fx.as_of}).`;
+  document.getElementById("methChangelog").textContent =
+    `${m.generated} — rebuilt as a standalone, synthetic-data public site (Margin & Pricing Command Center), separate from the internal live dashboard. Generator seed ${m.seed}.`;
+}
+/* ===== BYOD:JS ===== */
+const BYOD_COLS = ["booking_date","market","sku","tier","channel","flag","coupon","offer_price","campaign_discount","member_discount","coupon_discount","wallet_credit","gift_card","net_revenue","cost"];
+const BYOD_NUM_COLS = ["offer_price","campaign_discount","member_discount","coupon_discount","wallet_credit","gift_card","net_revenue","cost"];
+function openByodModal(){ document.getElementById("byodModal").classList.add("open"); }
+function closeByodModal(){ document.getElementById("byodModal").classList.remove("open"); }
+function wireByod(){
+  const dz = document.getElementById("byodDropzone");
+  const input = document.getElementById("byodFileInput");
+  dz.addEventListener("click", ()=>input.click());
+  dz.addEventListener("keydown", e=>{ if (e.key==="Enter" || e.key===" ") input.click(); });
+  dz.addEventListener("dragover", e=>{ e.preventDefault(); dz.classList.add("dragover"); });
+  dz.addEventListener("dragleave", ()=>dz.classList.remove("dragover"));
+  dz.addEventListener("drop", e=>{
+    e.preventDefault(); dz.classList.remove("dragover");
+    if (e.dataTransfer.files.length) handleByodFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener("change", e=>{ if (e.target.files.length) handleByodFile(e.target.files[0]); });
+}
+function handleByodFile(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const rows = parseCSV(reader.result);
+    const headerOk = BYOD_COLS.every(c=> rows.length===0 || Object.prototype.hasOwnProperty.call(rows[0], c));
+    if (!headerOk){
+      document.getElementById("byodResult").innerHTML = `<p style="color:var(--bad)">This file is missing one or more expected columns. Expected: ${BYOD_COLS.join(", ")}.</p>`;
+      return;
+    }
+    let rejected = 0;
+    const clean = [];
+    for (const r of rows){
+      let ok = true;
+      for (const c of BYOD_NUM_COLS){ const v = +r[c]; if (r[c]==="" || isNaN(v)) { ok=false; break; } r[c]=v; }
+      if (!r.booking_date || !r.market || !r.sku) ok = false;
+      if (ok) clean.push(r); else rejected++;
+    }
+    renderByodReducedView(clean, rows.length, rejected);
+  };
+  reader.readAsText(file);
+}
+function byodDiscountTotal(r){ return r.campaign_discount+r.member_discount+r.coupon_discount+r.wallet_credit+r.gift_card; }
+function byodNDiscTypes(r){ return [r.campaign_discount,r.member_discount,r.coupon_discount,r.wallet_credit,r.gift_card].filter(v=>v>0).length; }
+function computeByodStackBuckets(bookings){
+  const buckets = {"0":[],"1":[],"2":[],"3+":[]};
+  for (const r of bookings){ const n = byodNDiscTypes(r); const k = n>=3? "3+" : String(n); buckets[k].push(r); }
+  return STACK_ORDER.map(k=>{
+    const rs = buckets[k];
+    const bookingsN = rs.length;
+    const offer = rs.reduce((a,r)=>a+r.offer_price,0);
+    const net = rs.reduce((a,r)=>a+r.net_revenue,0);
+    const cost = rs.reduce((a,r)=>a+r.cost,0);
+    const gm = net-cost;
+    const discount = rs.reduce((a,r)=>a+byodDiscountTotal(r),0);
+    return { bucket:k, bookings:bookingsN, n:bookingsN, share: bookings.length? bookingsN/bookings.length*100:0,
+      gm_pct: net>0? gm/net*100 : null, avgDiscountPerBooking: bookingsN? discount/bookingsN:0,
+      avgGmPerBooking: bookingsN? gm/bookingsN:0, avgOfferPerBooking: bookingsN? offer/bookingsN:0,
+      avgDiscountPct: offer? discount/offer*100:0 };
+  });
+}
+function byodCouponRisk(bookings){
+  const byCoupon = new Map();
+  for (const r of bookings){
+    if (!r.coupon) continue;
+    if (!byCoupon.has(r.coupon)) byCoupon.set(r.coupon, []);
+    byCoupon.get(r.coupon).push(r);
+  }
+  const out = [];
+  for (const [coupon, rs] of byCoupon){
+    if (rs.length < MIN_N()) continue;
+    const n3 = rs.filter(r=>byodNDiscTypes(r)>=3).length;
+    const neg = rs.filter(r=>(r.net_revenue-r.cost)<0);
+    const share3 = n3/rs.length, shareNeg = neg.length/rs.length;
+    const exposure = 0.5*share3+0.5*shareNeg;
+    const gmLost = neg.reduce((a,r)=>a+(r.net_revenue-r.cost),0);
+    out.push({coupon, n:rs.length, share3, shareNeg, exposure, band: exposure>0.25?"High":exposure>0.10?"Medium":"Low", gmLost});
+  }
+  return out.sort((a,b)=>b.exposure-a.exposure);
+}
+function renderByodReducedView(bookings, totalRows, rejected){
+  const buckets = computeByodStackBuckets(bookings);
+  const risk = byodCouponRisk(bookings);
+  const sim0 = runSimulator({capType:"n", capValue:2, lossRate:0}, buckets);
+  const sim15 = runSimulator({capType:"n", capValue:2, lossRate:15}, buckets);
+  const topLeak = risk.filter(r=>r.gmLost<0).sort((a,b)=>a.gmLost-b.gmLost).slice(0,5);
+  const action = topLeak[0] ? `Cap or retire ${topLeak[0].coupon} (${fmtMoneyFull(topLeak[0].gmLost)} GM lost, n=${topLeak[0].n})` : "No GM-negative coupon found in this file";
+  document.getElementById("byodResult").innerHTML = `
+    <p style="font-size:.82rem;color:var(--ink-soft)">Parsed ${totalRows} rows, used ${bookings.length}, rejected ${rejected} (bad/missing values).</p>
+    <h4>Stack cost</h4>
+    <table><thead><tr><th>Discount types</th><th>Share</th><th>GM%</th><th>n</th></tr></thead><tbody>
+      ${buckets.map(b=>`<tr><td>${b.bucket}</td><td>${b.share.toFixed(1)}%</td><td>${pctOrSuppressed(b.n, fmtPct(b.gm_pct))}</td><td>${fmtInt(b.n)}</td></tr>`).join("")}
+    </tbody></table>
+    <h4>Top leaking coupons</h4>
+    <table><thead><tr><th>Coupon</th><th>Band</th><th>GM lost</th><th>n</th></tr></thead><tbody>
+      ${topLeak.map(r=>`<tr><td>${r.coupon}</td><td><span class="chip ${r.band.toLowerCase()}">${r.band}</span></td><td style="color:var(--bad)">${fmtMoneyFull(r.gmLost)}</td><td>${fmtInt(r.n)}</td></tr>`).join("") || '<tr><td colspan="4" class="insufficient">none found</td></tr>'}
+    </tbody></table>
+    <h4>Simulator — cap at 2 discount types</h4>
+    <p style="font-size:.85rem">At 0% volume loss: net change ${fmtMoneyFull(sim0.netChange)}. At 15% volume loss: net change ${fmtMoneyFull(sim15.netChange)}.</p>
+    <h4>Top action</h4>
+    <p style="font-size:.85rem">${action}</p>
+    <p class="n-tag">This reduced view runs entirely in your browser from the file you dropped; closing this dialog discards it.</p>
+  `;
+}
+
+/* ---------- init ---------- */
+async function loadCSV(name){
+  const r = await fetch(`data/${name}.csv`);
+  const text = await r.text();
+  return parseCSV(text);
+}
+async function init(){
+  const metaResp = await fetch("data/meta.json");
+  STATE.meta = await metaResp.json();
+
+  const [sku, stack, coupon, segment, waterfall, priceChanges, promoEvents] = await Promise.all([
+    loadCSV("weekly_market_sku"), loadCSV("weekly_stack"), loadCSV("weekly_coupon"),
+    loadCSV("weekly_segment"), loadCSV("weekly_waterfall"), loadCSV("price_changes"), loadCSV("promo_events")
+  ]);
+  numCols(sku, AGG_COLS.concat(["gm_pct"])); boolCol(sku,"is_partial");
+  numCols(stack, AGG_COLS.concat(["gm_pct"])); boolCol(stack,"is_partial"); // n_disc_types stays a string ("0".."3+")
+  numCols(coupon, AGG_COLS.concat(["gm_pct","repeat_bookings","bookings_3plus","bookings_negative_gm"])); boolCol(coupon,"is_partial");
+  numCols(segment, AGG_COLS.concat(["gm_pct"])); boolCol(segment,"is_partial");
+  numCols(waterfall, AGG_COLS.concat(["gm_pct"])); boolCol(waterfall,"is_partial");
+  numCols(priceChanges, ["old_price","new_price","price_change","pct_change"]);
+
+  STATE.data = { weekly_market_sku:sku, weekly_stack:stack, weekly_coupon:coupon, weekly_segment:segment,
+                 weekly_waterfall:waterfall, price_changes:priceChanges, promo_events:promoEvents };
+
+  populateFilterOptions();
+  wireFilterBar();
+  renderDataBasis();
+  document.getElementById("heroUseDataBtn").addEventListener("click", ()=>openByodModal());
+  document.getElementById("byodOpenBtn").addEventListener("click", ()=>openByodModal());
+  document.getElementById("byodClose").addEventListener("click", ()=>closeByodModal());
+  document.getElementById("byodModal").addEventListener("click", (e)=>{ if (e.target.id==="byodModal") closeByodModal(); });
+  wireByod();
+  renderAll();
+}
+init().catch(err=>{
+  console.error(err);
+  document.getElementById("dataBasisTag").textContent = "Failed to load sample data.";
+});
+</script>
+</body>
+</html>
