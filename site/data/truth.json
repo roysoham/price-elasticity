@@ -1,0 +1,156 @@
+{
+  "seed": 20261028,
+  "note": "Ground truth for the synthetic demo. The dashboard must recover these, not read them.",
+  "elasticity": {
+    "E01": {
+      "sku": "SKU-01",
+      "markets": [
+        "B"
+      ],
+      "pct": 0.1,
+      "change_week": 9,
+      "true_elasticity": -0.6,
+      "confounded": true,
+      "status": "Uploaded"
+    },
+    "E02": {
+      "sku": "SKU-02",
+      "markets": [
+        "C"
+      ],
+      "pct": 0.1,
+      "change_week": 10,
+      "true_elasticity": -1.2,
+      "confounded": false,
+      "status": "Uploaded"
+    },
+    "E03": {
+      "sku": "SKU-03",
+      "markets": [
+        "B"
+      ],
+      "pct": 0.12,
+      "change_week": 10,
+      "true_elasticity": -0.9,
+      "confounded": true,
+      "status": "Uploaded"
+    },
+    "E04": {
+      "sku": "SKU-05",
+      "markets": [
+        "C",
+        "E"
+      ],
+      "pct": 0.1,
+      "change_week": 11,
+      "true_elasticity": -1.5,
+      "confounded": false,
+      "status": "Uploaded"
+    },
+    "E05": {
+      "sku": "SKU-06",
+      "markets": [
+        "D"
+      ],
+      "pct": 0.12,
+      "change_week": 11,
+      "true_elasticity": -0.4,
+      "confounded": false,
+      "status": "Uploaded"
+    },
+    "E06": {
+      "sku": "SKU-04",
+      "markets": [
+        "E"
+      ],
+      "pct": -0.1,
+      "change_week": 12,
+      "true_elasticity": -1.0,
+      "confounded": false,
+      "status": "Uploaded"
+    },
+    "E07": {
+      "sku": "SKU-07",
+      "markets": [
+        "F"
+      ],
+      "pct": 0.12,
+      "change_week": 13,
+      "true_elasticity": -1.8,
+      "confounded": false,
+      "status": "Uploaded"
+    },
+    "E08": {
+      "sku": "SKU-08",
+      "markets": [
+        "C"
+      ],
+      "pct": 0.1,
+      "change_week": 14,
+      "true_elasticity": -0.7,
+      "confounded": false,
+      "status": "Uploaded"
+    },
+    "E09": {
+      "sku": "SKU-09",
+      "markets": [
+        "B"
+      ],
+      "pct": 0.05,
+      "change_week": null,
+      "true_elasticity": -0.8,
+      "confounded": false,
+      "status": "Recommended"
+    },
+    "E10": {
+      "sku": "SKU-10",
+      "markets": [
+        "D"
+      ],
+      "pct": 0.06,
+      "change_week": null,
+      "true_elasticity": -1.0,
+      "confounded": false,
+      "status": "Recommended"
+    },
+    "E11": {
+      "sku": "SKU-11",
+      "markets": [
+        "E"
+      ],
+      "pct": 0.04,
+      "change_week": null,
+      "true_elasticity": -0.5,
+      "confounded": false,
+      "status": "Not uploaded"
+    }
+  },
+  "stack_distribution_complete_weeks": {
+    "0": {
+      "share_pct": 13.7,
+      "gm_pct": 80.6
+    },
+    "1": {
+      "share_pct": 43.9,
+      "gm_pct": 71.5
+    },
+    "2": {
+      "share_pct": 31.3,
+      "gm_pct": 67.8
+    },
+    "3+": {
+      "share_pct": 11.1,
+      "gm_pct": 63.9
+    }
+  },
+  "planted_overstack_tail": {
+    "coupon": "BUNDLE40",
+    "launch_week": 7,
+    "bookings": 5317,
+    "negative_gm_bookings": 2185,
+    "negative_gm_share_pct": 41.1,
+    "gm_lost_on_negative_usd": -8956.59
+  },
+  "confounder": "Market B coupon push in weeks 12-13 contaminates E01 and E03 post windows",
+  "policy_change": "Campaign discount switched off after week 3"
+}

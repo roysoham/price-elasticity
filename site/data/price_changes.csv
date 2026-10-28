@@ -1,0 +1,13 @@
+event_id,sku,market,old_price,new_price,price_change,pct_change,status,change_date,control_market
+E01,SKU-01,B,14.0,15.4,1.4,10.0,Uploaded,2026-08-10,A
+E02,SKU-02,C,23.28,25.61,2.33,10.0,Uploaded,2026-08-17,A
+E03,SKU-03,B,29.0,32.48,3.48,12.0,Uploaded,2026-08-17,A
+E04,SKU-05,C,21.34,23.47,2.13,10.0,Uploaded,2026-08-24,D
+E04,SKU-05,E,20.24,22.26,2.02,10.0,Uploaded,2026-08-24,D
+E05,SKU-06,D,11.4,12.77,1.37,12.0,Uploaded,2026-08-24,A
+E06,SKU-04,E,72.68,65.41,-7.27,-10.0,Uploaded,2026-08-31,A
+E07,SKU-07,F,14.4,16.13,1.73,12.0,Uploaded,2026-09-07,D
+E08,SKU-08,C,52.38,57.62,5.24,10.0,Uploaded,2026-09-14,A
+E09,SKU-09,B,64.0,67.2,3.2,5.0,Recommended,,A
+E10,SKU-10,D,36.1,38.27,2.17,6.0,Recommended,,A
+E11,SKU-11,E,13.8,14.35,0.55,4.0,Not uploaded,,A

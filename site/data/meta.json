@@ -1,0 +1,16 @@
+{
+  "generated": "2026-10-28",
+  "seed": 20261028,
+  "first_week": "2026-06-08",
+  "last_complete_week": "2026-10-19",
+  "partial_week": "2026-10-26",
+  "n_weeks": 21,
+  "currency": "USD",
+  "fx": {
+    "AED": 3.6725,
+    "as_of": "2026-10-28",
+    "note": "indicative; editable in Assumptions"
+  },
+  "min_n_for_percentages": 100,
+  "stacking_so_what_basis": "0->1->2 discount step, n shown per cell"
+}
